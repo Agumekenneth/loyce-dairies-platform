@@ -16,19 +16,31 @@ import {
   X,
 } from 'lucide-react'
 
+import { useCart } from './context/CartContext'
 import { products, categories, formatPrice } from './data/products'
-import type { Product } from './types/product'
 
 function App() {
+  // Homepage state
   const [activeCategory, setActiveCategory] = useState('All products')
-  const [cart, setCart] = useState<Record<number, number>>({})
-  const [cartOpen, setCartOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
 
+  // Shared shopping cart state
+  const {
+    cartProducts,
+    cartCount,
+    cartTotal,
+    cartOpen,
+    openCart,
+    closeCart,
+    updateCart,
+  } = useCart()
+
+  // Accessibility references
   const closeCartRef = useRef<HTMLButtonElement>(null)
   const cartTriggerRef = useRef<HTMLButtonElement>(null)
 
+  // Product filtering and search
   const filteredProducts = products.filter((product) => {
     const matchesCategory =
       activeCategory === 'All products' ||
@@ -43,49 +55,17 @@ function App() {
     return matchesCategory && matchesSearch
   })
 
-  const cartCount = Object.values(cart).reduce(
-    (total, quantity) => total + quantity,
-    0,
-  )
-
-  const cartTotal = products.reduce(
-    (total, product) =>
-      total + product.price * (cart[product.id] ?? 0),
-    0,
-  )
-
-  const cartProducts: Product[] = products.filter(
-    (product) => (cart[product.id] ?? 0) > 0,
-  )
-
-  const updateCart = (id: number, change: number) => {
-    setCart((current) => {
-      const nextQuantity = Math.max(0, (current[id] ?? 0) + change)
-      const updated = { ...current }
-
-      if (nextQuantity === 0) {
-        delete updated[id]
-      } else {
-        updated[id] = nextQuantity
-      }
-
-      return updated
-    })
-  }
-
-  const closeCart = () => {
-    setCartOpen(false)
-  }
-
+  // Navigate to the product section
   const goToProducts = () => {
+    closeCart()
+    setMenuOpen(false)
+
     document.getElementById('products')?.scrollIntoView({
       behavior: 'smooth',
     })
-
-    setMenuOpen(false)
-    setCartOpen(false)
   }
 
+  // Handle cart accessibility and background scrolling
   useEffect(() => {
     if (!cartOpen) return
 
@@ -94,20 +74,20 @@ function App() {
 
     closeCartRef.current?.focus()
 
-    const handleEscape = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setCartOpen(false)
+        closeCart()
       }
     }
 
-    document.addEventListener('keydown', handleEscape)
+    document.addEventListener('keydown', handleKeyDown)
 
     return () => {
       document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('keydown', handleKeyDown)
       cartTriggerRef.current?.focus()
     }
-  }, [cartOpen])
+  }, [cartOpen, closeCart])
 
   return (
     <div className="min-h-screen bg-cream text-brand">
@@ -124,12 +104,17 @@ function App() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <a href="#home" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white">
-              <Milk size={24} strokeWidth={1.7} aria-hidden="true" />
+              <Milk
+                size={24}
+                strokeWidth={1.7}
+                aria-hidden="true"
+              />
             </div>
 
             <div>
               <span className="block text-lg font-extrabold tracking-tight text-brand">
-                loyce<span className="text-brand-light">.</span>
+                loyce
+                <span className="text-brand-light">.</span>
               </span>
 
               <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-brand/60">
@@ -138,11 +123,15 @@ function App() {
             </div>
           </a>
 
+          {/* Desktop navigation */}
           <nav
             aria-label="Main navigation"
             className="hidden items-center gap-9 text-sm font-semibold text-brand/80 md:flex"
           >
-            <a href="#home" className="hover:text-brand-light">
+            <a
+              href="#home"
+              className="hover:text-brand-light"
+            >
               Home
             </a>
 
@@ -154,11 +143,15 @@ function App() {
               Shop products
             </button>
 
-            <a href="#why-us" className="hover:text-brand-light">
+            <a
+              href="#why-us"
+              className="hover:text-brand-light"
+            >
               Why Loyce?
             </a>
           </nav>
 
+          {/* Navigation actions */}
           <div className="flex items-center gap-3">
             <span className="hidden items-center gap-1 text-xs font-semibold text-brand/70 lg:flex">
               <MapPin size={15} aria-hidden="true" />
@@ -166,10 +159,11 @@ function App() {
               <ChevronDown size={13} aria-hidden="true" />
             </span>
 
+            {/* Shared cart trigger */}
             <button
               ref={cartTriggerRef}
               type="button"
-              onClick={() => setCartOpen(true)}
+              onClick={openCart}
               aria-label={`Open shopping cart with ${cartCount} items`}
               className="relative flex h-11 w-11 items-center justify-center rounded-full border border-brand/15 hover:bg-sage"
             >
@@ -182,10 +176,15 @@ function App() {
               )}
             </button>
 
+            {/* Mobile menu trigger */}
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
-              aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-label={
+                menuOpen
+                  ? 'Close navigation menu'
+                  : 'Open navigation menu'
+              }
               aria-expanded={menuOpen}
               className="flex h-11 w-11 items-center justify-center rounded-full border border-brand/15 md:hidden"
             >
@@ -194,6 +193,7 @@ function App() {
           </div>
         </div>
 
+        {/* Mobile navigation */}
         {menuOpen && (
           <nav
             aria-label="Mobile navigation"
@@ -239,7 +239,9 @@ function App() {
               A little fresh.
               <br />
               A lot of{' '}
-              <span className="italic text-brand-light">good.</span>
+              <span className="italic text-brand-light">
+                good.
+              </span>
             </h1>
 
             <p className="mt-7 max-w-md text-base leading-8 text-brand/65 sm:text-lg">
@@ -265,6 +267,7 @@ function App() {
               </a>
             </div>
 
+            {/* Hero highlights */}
             <div className="mt-12 flex flex-wrap gap-x-8 gap-y-4 border-t border-brand/10 pt-6">
               <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
                 <Leaf size={17} className="text-brand-light" />
@@ -277,7 +280,10 @@ function App() {
               </span>
 
               <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
-                <ShieldCheck size={17} className="text-brand-light" />
+                <ShieldCheck
+                  size={17}
+                  className="text-brand-light"
+                />
                 Easy ordering
               </span>
             </div>
@@ -307,8 +313,11 @@ function App() {
           </div>
         </section>
 
-        {/* Products section */}
-        <section id="products" className="scroll-mt-24 bg-white py-20">
+        {/* Product catalogue */}
+        <section
+          id="products"
+          className="scroll-mt-24 bg-white py-20"
+        >
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
@@ -325,8 +334,13 @@ function App() {
                 </p>
               </div>
 
+              {/* Product search */}
               <label className="flex items-center gap-2 rounded-full border border-brand/15 px-4 py-3 focus-within:border-brand-light">
-                <Search size={18} className="text-brand/50" />
+                <Search
+                  size={18}
+                  className="text-brand/50"
+                  aria-hidden="true"
+                />
 
                 <input
                   type="search"
@@ -339,7 +353,7 @@ function App() {
               </label>
             </div>
 
-            {/* Category filters */}
+            {/* Product categories */}
             <div
               aria-label="Product categories"
               className="mt-9 flex gap-3 overflow-x-auto pb-3"
@@ -361,7 +375,7 @@ function App() {
               ))}
             </div>
 
-            {/* Product grid */}
+            {/* Product cards */}
             <div className="mt-9 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {filteredProducts.map((product) => (
                 <article key={product.id} className="group">
@@ -385,7 +399,7 @@ function App() {
                       aria-label={`Add ${product.name} to cart`}
                       className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full bg-brand text-white shadow-lg hover:scale-110"
                     >
-                      <Plus size={21} />
+                      <Plus size={21} aria-hidden="true" />
                     </button>
                   </div>
 
@@ -406,11 +420,13 @@ function App() {
               ))}
             </div>
 
+            {/* Empty search results */}
             {filteredProducts.length === 0 && (
               <div className="py-16 text-center">
                 <Search
                   size={36}
                   className="mx-auto mb-4 text-brand/30"
+                  aria-hidden="true"
                 />
 
                 <h3 className="font-display text-2xl text-brand">
@@ -442,7 +458,10 @@ function App() {
         </section>
 
         {/* Why choose Loyce */}
-        <section id="why-us" className="scroll-mt-24 bg-sage py-20">
+        <section
+          id="why-us"
+          className="scroll-mt-24 bg-sage py-20"
+        >
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="max-w-xl">
               <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
@@ -501,7 +520,9 @@ function App() {
       <footer className="bg-brand px-5 py-12 text-white lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6">
           <div>
-            <p className="text-2xl font-extrabold">loyce.</p>
+            <p className="text-2xl font-extrabold">
+              loyce.
+            </p>
 
             <p className="mt-2 text-sm text-white/60">
               Fresh dairy for everyday living.
@@ -514,9 +535,10 @@ function App() {
         </div>
       </footer>
 
-      {/* Shopping cart drawer */}
+      {/* Shared shopping cart drawer */}
       {cartOpen && (
         <div className="fixed inset-0 z-50">
+          {/* Backdrop */}
           <button
             type="button"
             aria-label="Close shopping cart"
@@ -524,12 +546,14 @@ function App() {
             className="absolute inset-0 bg-black/45"
           />
 
+          {/* Cart panel */}
           <aside
             role="dialog"
             aria-modal="true"
             aria-label="Shopping cart"
             className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-cream p-6 shadow-2xl"
           >
+            {/* Cart header */}
             <div className="flex items-center justify-between border-b border-brand/10 pb-5">
               <div>
                 <h2 className="font-display text-3xl text-brand">
@@ -537,7 +561,8 @@ function App() {
                 </h2>
 
                 <p className="mt-1 text-xs text-brand/60">
-                  {cartCount} {cartCount === 1 ? 'item' : 'items'}
+                  {cartCount}{' '}
+                  {cartCount === 1 ? 'item' : 'items'}
                 </p>
               </div>
 
@@ -546,23 +571,25 @@ function App() {
                 type="button"
                 onClick={closeCart}
                 aria-label="Close cart"
-                className="rounded-full bg-sage p-3"
+                className="rounded-full bg-sage p-3 hover:bg-brand/10"
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto py-6">
+            {/* Cart contents */}
+            <div className="flex-1 overflow-y-auto py-6">
               {cartCount === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <ShoppingBag
                     size={45}
                     className="text-brand/30"
+                    aria-hidden="true"
                   />
 
-                  <p className="mt-5 font-display text-2xl text-brand">
+                  <h3 className="mt-5 font-display text-2xl text-brand">
                     Your basket is empty
-                  </p>
+                  </h3>
 
                   <p className="mt-2 text-sm text-brand/60">
                     Add something fresh to get started.
@@ -571,18 +598,19 @@ function App() {
                   <button
                     type="button"
                     onClick={goToProducts}
-                    className="mt-6 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white"
+                    className="mt-6 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-light"
                   >
                     Explore products
                   </button>
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {cartProducts.map((product: Product) => {
-                    const quantity = cart[product.id] ?? 0
-
-                    return (
-                      <article key={product.id} className="flex items-center gap-4 border-b border-brand/10 pb-5">
+                  {cartProducts.map(
+                    ({ product, quantity, lineTotal }) => (
+                      <article
+                        key={product.id}
+                        className="flex items-center gap-4 border-b border-brand/10 pb-5"
+                      >
                         <img
                           src={product.image}
                           alt={product.name}
@@ -590,39 +618,61 @@ function App() {
                         />
 
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-bold text-brand">{product.name}</h3>
-                          <p className="mt-1 text-xs text-brand/60">{product.unit}</p>
+                          <h3 className="text-sm font-bold text-brand">
+                            {product.name}
+                          </h3>
+
+                          <p className="mt-1 text-xs text-brand/60">
+                            {product.unit}
+                          </p>
+
                           <p className="mt-2 text-sm font-bold text-brand">
-                            {formatPrice(product.price * quantity)}
+                            {formatPrice(lineTotal)}
                           </p>
                         </div>
 
+                        {/* Quantity controls */}
                         <div className="flex shrink-0 items-center rounded-full border border-brand/15">
                           <button
                             type="button"
-                            onClick={() => updateCart(product.id, -1)}
+                            onClick={() =>
+                              updateCart(product.id, -1)
+                            }
                             aria-label={`Remove one ${product.name}`}
-                            className="p-2"
+                            className="p-2 hover:text-brand-light"
                           >
-                            <Minus size={15} />
+                            <Minus
+                              size={15}
+                              aria-hidden="true"
+                            />
                           </button>
-                          <span className="min-w-5 text-center text-sm font-bold">{quantity}</span>
+
+                          <span className="min-w-5 text-center text-sm font-bold">
+                            {quantity}
+                          </span>
+
                           <button
                             type="button"
-                            onClick={() => updateCart(product.id, 1)}
+                            onClick={() =>
+                              updateCart(product.id, 1)
+                            }
                             aria-label={`Add one ${product.name}`}
-                            className="p-2"
+                            className="p-2 hover:text-brand-light"
                           >
-                            <Plus size={15} />
+                            <Plus
+                              size={15}
+                              aria-hidden="true"
+                            />
                           </button>
                         </div>
                       </article>
-                    )
-                  })}
+                    ),
+                  )}
                 </div>
               )}
             </div>
 
+            {/* Cart summary */}
             <div className="border-t border-brand/10 pt-5">
               <div className="mb-5 flex justify-between text-lg font-bold text-brand">
                 <span>Subtotal</span>
