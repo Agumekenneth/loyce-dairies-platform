@@ -14,15 +14,15 @@ import {
 } from 'lucide-react'
 
 import Navbar from './components/layout/Navbar'
+import Footer from './components/layout/Footer'
+import ProductCard from './components/products/ProductCard'
 import { useCart } from './context/CartContext'
 import { products, categories, formatPrice } from './data/products'
 
 function App() {
-  // Homepage state
   const [activeCategory, setActiveCategory] = useState('All products')
   const [search, setSearch] = useState('')
 
-  // Shared shopping cart
   const {
     cartProducts,
     cartCount,
@@ -34,7 +34,7 @@ function App() {
 
   const closeCartRef = useRef<HTMLButtonElement>(null)
 
-  // Filter products by category and search term
+  // Filter products by category and search query
   const filteredProducts = products.filter((product) => {
     const matchesCategory =
       activeCategory === 'All products' ||
@@ -49,7 +49,7 @@ function App() {
     return matchesCategory && matchesSearch
   })
 
-  // Navigate to the products section
+  // Navigate to product catalogue
   const goToProducts = () => {
     closeCart()
 
@@ -58,7 +58,7 @@ function App() {
     })
   }
 
-  // Manage cart accessibility and page scrolling
+  // Handle cart accessibility and background scrolling
   useEffect(() => {
     if (!cartOpen) return
 
@@ -83,7 +83,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-cream text-brand">
-      {/* Reusable navigation component */}
+      {/* Reusable navigation */}
       <Navbar onShopClick={goToProducts} />
 
       <main id="home">
@@ -213,7 +213,7 @@ function App() {
               </label>
             </div>
 
-            {/* Category filters */}
+            {/* Product category filters */}
             <div
               aria-label="Product categories"
               className="mt-9 flex gap-3 overflow-x-auto pb-3"
@@ -235,48 +235,13 @@ function App() {
               ))}
             </div>
 
-            {/* Product cards */}
+            {/* Reusable product cards */}
             <div className="mt-9 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {filteredProducts.map((product) => (
-                <article key={product.id} className="group">
-                  <div className="relative overflow-hidden rounded-[1.75rem] bg-cream">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      loading="lazy"
-                      className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-
-                    {product.badge && (
-                      <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-2 text-[10px] font-bold text-brand">
-                        {product.badge}
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => updateCart(product.id, 1)}
-                      aria-label={`Add ${product.name} to cart`}
-                      className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full bg-brand text-white shadow-lg hover:scale-110"
-                    >
-                      <Plus size={21} aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  <div className="px-1 pt-5">
-                    <p className="text-xs font-semibold text-brand-light">
-                      {product.category} · {product.unit}
-                    </p>
-
-                    <h3 className="mt-2 text-base font-bold text-brand">
-                      {product.name}
-                    </h3>
-
-                    <p className="mt-2 text-sm font-extrabold text-brand">
-                      {formatPrice(product.price)}
-                    </p>
-                  </div>
-                </article>
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                />
               ))}
             </div>
 
@@ -376,26 +341,10 @@ function App() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-brand px-5 py-12 text-white lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6">
-          <div>
-            <p className="text-2xl font-extrabold">
-              loyce.
-            </p>
+      {/* Reusable footer */}
+      <Footer />
 
-            <p className="mt-2 text-sm text-white/60">
-              Fresh dairy for everyday living.
-            </p>
-          </div>
-
-          <p className="text-xs text-white/60">
-            © {new Date().getFullYear()} Loyce Dairies · Mbarara, Uganda
-          </p>
-        </div>
-      </footer>
-
-      {/* Shopping cart drawer */}
+      {/* Shared shopping cart drawer */}
       {cartOpen && (
         <div className="fixed inset-0 z-50">
           {/* Backdrop */}
