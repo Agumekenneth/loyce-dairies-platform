@@ -1,121 +1,522 @@
+
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import {
+  ArrowRight,
+  ChevronDown,
+  Leaf,
+  MapPin,
+  Menu,
+  Milk,
+  Minus,
+  Plus,
+  Search,
+  ShieldCheck,
+  ShoppingBag,
+  Truck,
+  X,
+} from 'lucide-react'
+
+type Product = {
+  id: number
+  name: string
+  category: string
+  price: number
+  unit: string
+  image: string
+  badge?: string
+}
+
+const products: Product[] = [
+  {
+    id: 1,
+    name: 'Fresh Whole Milk',
+    category: 'Fresh Milk',
+    price: 3500,
+    unit: '1 litre',
+    image:
+      'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=800&auto=format&fit=crop&q=85',
+    badge: 'Popular',
+  },
+  {
+    id: 2,
+    name: 'Creamy Natural Yoghurt',
+    category: 'Yoghurt',
+    price: 5000,
+    unit: '500 ml',
+    image:
+      'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&auto=format&fit=crop&q=85',
+  },
+  {
+    id: 3,
+    name: 'Farmhouse Butter',
+    category: 'Butter',
+    price: 12000,
+    unit: '250 g',
+    image:
+      'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=800&auto=format&fit=crop&q=85',
+    badge: 'Farm favourite',
+  },
+  {
+    id: 4,
+    name: 'Traditional Pure Ghee',
+    category: 'Ghee',
+    price: 18000,
+    unit: '500 ml',
+    image:
+      'https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=800&auto=format&fit=crop&q=85',
+  },
+]
+
+const categories = ['All products', 'Fresh Milk', 'Yoghurt', 'Butter', 'Ghee']
+
+const formatPrice = (price: number) =>
+  `UGX ${new Intl.NumberFormat('en-UG').format(price)}`
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activeCategory, setActiveCategory] = useState('All products')
+  const [cart, setCart] = useState<Record<number, number>>({})
+  const [cartOpen, setCartOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory =
+      activeCategory === 'All products' ||
+      product.category === activeCategory
+    const matchesSearch = product.name
+      .toLowerCase()
+      .includes(search.toLowerCase())
+
+    return matchesCategory && matchesSearch
+  })
+
+  const cartCount = Object.values(cart).reduce(
+    (total, quantity) => total + quantity,
+    0,
+  )
+
+  const cartTotal = products.reduce(
+    (total, product) => total + product.price * (cart[product.id] || 0),
+    0,
+  )
+
+  const updateCart = (id: number, change: number) => {
+    setCart((current) => ({
+      ...current,
+      [id]: Math.max(0, (current[id] || 0) + change),
+    }))
+  }
+
+  const goToProducts = () => {
+    document.getElementById('products')?.scrollIntoView({
+      behavior: 'smooth',
+    })
+    setMenuOpen(false)
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="min-h-screen bg-cream">
+      {/* Announcement bar */}
+      <div className="bg-brand px-4 py-2.5 text-center text-xs font-medium text-white sm:text-sm">
+        <span className="inline-flex items-center gap-2">
+          <Truck size={15} />
+          Fresh dairy delivered with care in Mbarara
+        </span>
+      </div>
+
+      {/* Navigation */}
+      <header className="sticky top-0 z-30 border-b border-brand/10 bg-cream/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 lg:px-8">
+          <a href="#" className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white">
+              <Milk size={24} strokeWidth={1.7} />
+            </div>
+            <div>
+              <span className="block text-lg font-extrabold tracking-tight text-brand">
+                loyce<span className="text-brand-light">.</span>
+              </span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-brand/60">
+                Dairies
+              </span>
+            </div>
+          </a>
+
+          <nav className="hidden items-center gap-9 text-sm font-semibold text-brand/80 md:flex">
+            <a href="#" className="hover:text-brand-light">Home</a>
+            <button onClick={goToProducts} className="hover:text-brand-light">
+              Shop products
+            </button>
+            <a href="#why-us" className="hover:text-brand-light">
+              Why Loyce?
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <span className="hidden items-center gap-1 text-xs font-semibold text-brand/70 lg:flex">
+              <MapPin size={15} /> Mbarara, Uganda <ChevronDown size={13} />
+            </span>
+            <button
+              onClick={() => setCartOpen(true)}
+              aria-label={`Open shopping cart with ${cartCount} items`}
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-brand/15 hover:bg-sage"
+            >
+              <ShoppingBag size={20} />
+              {cartCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-brand">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Toggle navigation menu"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-brand/15 md:hidden"
+            >
+              {menuOpen ? <X size={21} /> : <Menu size={21} />}
+            </button>
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+
+        {menuOpen && (
+          <div className="space-y-4 border-t border-brand/10 px-6 py-5 text-sm font-semibold md:hidden">
+            <a href="#" className="block" onClick={() => setMenuOpen(false)}>Home</a>
+            <button onClick={goToProducts} className="block">Shop products</button>
+            <a href="#why-us" className="block" onClick={() => setMenuOpen(false)}>
+              Why Loyce?
+            </a>
+          </div>
+        )}
+      </header>
+
+      <main>
+        {/* Hero */}
+        <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 pb-14 pt-12 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:pb-24 lg:pt-20">
+          <div className="max-w-xl">
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-brand/15 bg-sage px-4 py-2 text-xs font-bold tracking-wide text-brand">
+              <Leaf size={15} />
+              FRESH GOODNESS FROM MBARARA
+            </div>
+
+            <h1 className="font-display text-[clamp(3.5rem,6vw,6rem)] leading-[1.04] tracking-tight text-brand">
+              A little fresh.
+              <br />
+              A lot of <span className="italic text-brand-light">good.</span>
+            </h1>
+
+            <p className="mt-7 max-w-md text-base leading-8 text-brand/65 sm:text-lg">
+              From creamy milk to delicious yoghurt, discover everyday dairy
+              favourites delivered straight to your doorstep.
+            </p>
+
+            <div className="mt-9 flex flex-wrap items-center gap-4">
+              <button
+                onClick={goToProducts}
+                className="inline-flex items-center gap-3 rounded-full bg-brand px-7 py-4 text-sm font-bold text-white shadow-lg shadow-brand/15 hover:-translate-y-1 hover:bg-brand-light"
+              >
+                Shop fresh dairy <ArrowRight size={18} />
+              </button>
+              <a
+                href="#why-us"
+                className="rounded-full border border-brand/20 px-7 py-4 text-sm font-bold text-brand hover:bg-sage"
+              >
+                Why choose us?
+              </a>
+            </div>
+
+            <div className="mt-12 flex flex-wrap gap-x-8 gap-y-4 border-t border-brand/10 pt-6">
+              <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
+                <Leaf size={17} className="text-brand-light" /> Quality dairy
+              </span>
+              <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
+                <Truck size={17} className="text-brand-light" /> Local delivery
+              </span>
+              <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
+                <ShieldCheck size={17} className="text-brand-light" /> Easy ordering
+              </span>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute -left-5 -top-5 h-28 w-28 rounded-full bg-gold/30 blur-3xl" />
+            <div className="relative overflow-hidden rounded-[2.5rem] bg-sage">
+              <img
+                src="https://images.unsplash.com/photo-1550583724-b2692b85b150?w=1400&auto=format&fit=crop&q=90"
+                alt="Fresh dairy products"
+                className="h-[400px] w-full object-cover sm:h-[550px]"
+              />
+              <div className="absolute bottom-6 left-6 rounded-2xl bg-white/95 px-5 py-4 shadow-xl backdrop-blur">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-light">
+                  Everyday goodness
+                </span>
+                <p className="mt-1 font-display text-2xl text-brand">
+                  Freshness you can taste.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Products */}
+        <section id="products" className="bg-white py-20">
+          <div className="mx-auto max-w-7xl px-5 lg:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
+                  THE GOOD STUFF
+                </p>
+                <h2 className="font-display text-4xl text-brand sm:text-5xl">
+                  Our dairy favourites
+                </h2>
+                <p className="mt-4 text-sm text-brand/60">
+                  Explore our selection of fresh dairy essentials.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-brand/15 px-4 py-3">
+                <Search size={18} className="text-brand/50" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search products"
+                  aria-label="Search products"
+                  className="w-36 bg-transparent text-sm outline-none placeholder:text-brand/40 sm:w-48"
+                />
+              </div>
+            </div>
+
+            <div className="mt-9 flex gap-3 overflow-x-auto pb-3">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  className={`shrink-0 rounded-full px-5 py-3 text-xs font-bold ${
+                    activeCategory === category
+                      ? 'bg-brand text-white'
+                      : 'bg-cream text-brand/70 hover:bg-sage'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-9 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {filteredProducts.map((product) => (
+                <article key={product.id} className="group">
+                  <div className="relative overflow-hidden rounded-[1.75rem] bg-cream">
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      loading="lazy"
+                      className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    {product.badge && (
+                      <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-2 text-[10px] font-bold text-brand">
+                        {product.badge}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => updateCart(product.id, 1)}
+                      aria-label={`Add ${product.name} to cart`}
+                      className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full bg-brand text-white shadow-lg hover:scale-110"
+                    >
+                      <Plus size={21} />
+                    </button>
+                  </div>
+                  <div className="px-1 pt-5">
+                    <p className="text-xs font-semibold text-brand-light">
+                      {product.category} · {product.unit}
+                    </p>
+                    <h3 className="mt-2 text-base font-bold text-brand">
+                      {product.name}
+                    </h3>
+                    <p className="mt-2 text-sm font-extrabold text-brand">
+                      {formatPrice(product.price)}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {filteredProducts.length === 0 && (
+              <p className="py-16 text-center text-brand/60">
+                No products match your search.
+              </p>
+            )}
+            <p className="mt-8 text-xs text-brand/50">
+              Sample products and prices for interface development. Final
+              availability and prices will come from our backend.
+            </p>
+          </div>
+        </section>
+
+        {/* Why us */}
+        <section id="why-us" className="bg-sage py-20">
+          <div className="mx-auto max-w-7xl px-5 lg:px-8">
+            <div className="max-w-xl">
+              <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
+                THE LOYCE WAY
+              </p>
+              <h2 className="font-display text-4xl text-brand sm:text-5xl">
+                Good dairy. Simple shopping.
+              </h2>
+            </div>
+            <div className="mt-12 grid gap-5 md:grid-cols-3">
+              {[
+                {
+                  icon: <Milk size={27} />,
+                  title: 'Dairy favourites',
+                  description: 'Find milk, yoghurt, butter and ghee in one convenient place.',
+                },
+                {
+                  icon: <Truck size={27} />,
+                  title: 'Made for local delivery',
+                  description: 'Order for delivery within our supported Mbarara service areas.',
+                },
+                {
+                  icon: <ShieldCheck size={27} />,
+                  title: 'A simpler way to shop',
+                  description: 'Browse, choose your favourites and manage your cart with ease.',
+                },
+              ].map((feature) => (
+                <div key={feature.title} className="rounded-[1.75rem] bg-white p-8">
+                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-sage text-brand">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-lg font-extrabold text-brand">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-brand/60">
+                    {feature.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-brand px-5 py-12 text-white lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6">
+          <div>
+            <p className="text-2xl font-extrabold">loyce.</p>
+            <p className="mt-2 text-sm text-white/60">
+              Fresh dairy for everyday living.
+            </p>
+          </div>
+          <p className="text-xs text-white/60">
+            © {new Date().getFullYear()} Loyce Dairies · Mbarara, Uganda
           </p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      </footer>
 
-      <div className="ticks"></div>
+      {/* Cart drawer */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-50">
+          <button
+            aria-label="Close shopping cart"
+            onClick={() => setCartOpen(false)}
+            className="absolute inset-0 bg-black/45"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Shopping cart"
+            className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-cream p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-brand/10 pb-5">
+              <div>
+                <h2 className="font-display text-3xl text-brand">Your basket</h2>
+                <p className="mt-1 text-xs text-brand/60">
+                  {cartCount} items
+                </p>
+              </div>
+              <button
+                onClick={() => setCartOpen(false)}
+                aria-label="Close cart"
+                className="rounded-full bg-sage p-3"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+            <div className="flex-1 space-y-5 overflow-y-auto py-6">
+              {cartCount === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center">
+                  <ShoppingBag size={45} className="text-brand/30" />
+                  <p className="mt-5 font-display text-2xl text-brand">
+                    Your basket is empty
+                  </p>
+                  <p className="mt-2 text-sm text-brand/60">
+                    Add something fresh to get started.
+                  </p>
+                </div>
+              ) : (
+                products
+                  .filter((product) => (cart[product.id] || 0) > 0)
+                  .map((product) => (
+                    <div key={product.id} className="flex gap-4">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="h-20 w-20 rounded-xl object-cover"
+                      />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-bold text-brand">
+                          {product.name}
+                        </h3>
+                        <p className="mt-1 text-xs text-brand/60">{product.unit}</p>
+                        <p className="mt-2 text-sm font-bold text-brand">
+                          {formatPrice(product.price)}
+                        </p>
+                      </div>
+                      <div className="flex items-center self-center rounded-full border border-brand/15">
+                        <button
+                          onClick={() => updateCart(product.id, -1)}
+                          aria-label={`Remove one ${product.name}`}
+                          className="p-2"
+                        >
+                          <Minus size={15} />
+                        </button>
+                        <span className="min-w-5 text-center text-sm font-bold">
+                          {cart[product.id]}
+                        </span>
+                        <button
+                          onClick={() => updateCart(product.id, 1)}
+                          aria-label={`Add one ${product.name}`}
+                          className="p-2"
+                        >
+                          <Plus size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="border-t border-brand/10 pt-5">
+              <div className="mb-5 flex justify-between text-lg font-bold text-brand">
+                <span>Subtotal</span>
+                <span>{formatPrice(cartTotal)}</span>
+              </div>
+              <p className="mb-4 text-xs text-brand/60">
+                Delivery charges will be calculated at checkout.
+              </p>
+              <button
+                disabled={cartCount === 0}
+                onClick={() => {
+                  setCartOpen(false)
+                  window.alert('Checkout will be available in a later milestone.')
+                }}
+                className="w-full rounded-full bg-brand py-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Continue to checkout
+              </button>
+            </div>
+          </aside>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      )}
+    </div>
   )
 }
 

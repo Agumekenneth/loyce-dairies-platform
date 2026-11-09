@@ -1,13 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --color-brand: #174D36;
+  --color-brand-light: #367C54;
+  --color-cream: #F8F6EF;
+  --color-sage: #E7EFDF;
+  --color-gold: #E8B85B;
+
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-display: "DM Serif Display", serif;
+}
+
 :root {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-sans);
+  color: #183C2C;
+  background: var(--color-cream);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+}
+
+button,
+a {
+  transition: all 0.2s ease;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: #D6E8D5;
+  color: #174D36;
 }
