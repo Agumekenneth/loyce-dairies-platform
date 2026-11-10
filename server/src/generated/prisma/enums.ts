@@ -65,3 +65,13 @@ export const OrderStatus = {
 } as const
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
+
+
+export const DeliveryZoneAuditAction = {
+  CREATED: 'CREATED',
+  UPDATED: 'UPDATED',
+  ACTIVATED: 'ACTIVATED',
+  DEACTIVATED: 'DEACTIVATED'
+} as const
+
+export type DeliveryZoneAuditAction = (typeof DeliveryZoneAuditAction)[keyof typeof DeliveryZoneAuditAction]

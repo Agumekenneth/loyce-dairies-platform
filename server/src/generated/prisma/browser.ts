@@ -62,3 +62,8 @@ export type OrderItem = Prisma.OrderItemModel
  * 
  */
 export type OrderStatusEvent = Prisma.OrderStatusEventModel
+/**
+ * Model DeliveryZoneAuditEvent
+ * 
+ */
+export type DeliveryZoneAuditEvent = Prisma.DeliveryZoneAuditEventModel

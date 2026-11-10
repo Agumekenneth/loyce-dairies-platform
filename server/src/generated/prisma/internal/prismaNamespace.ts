@@ -405,7 +405,8 @@ export const ModelName = {
   DeliveryZone: 'DeliveryZone',
   Order: 'Order',
   OrderItem: 'OrderItem',
-  OrderStatusEvent: 'OrderStatusEvent'
+  OrderStatusEvent: 'OrderStatusEvent',
+  DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -421,7 +422,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1091,6 +1092,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    DeliveryZoneAuditEvent: {
+      payload: Prisma.$DeliveryZoneAuditEventPayload<ExtArgs>
+      fields: Prisma.DeliveryZoneAuditEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.DeliveryZoneAuditEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.DeliveryZoneAuditEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>
+        }
+        findFirst: {
+          args: Prisma.DeliveryZoneAuditEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.DeliveryZoneAuditEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>
+        }
+        findMany: {
+          args: Prisma.DeliveryZoneAuditEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>[]
+        }
+        create: {
+          args: Prisma.DeliveryZoneAuditEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>
+        }
+        createMany: {
+          args: Prisma.DeliveryZoneAuditEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.DeliveryZoneAuditEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>[]
+        }
+        delete: {
+          args: Prisma.DeliveryZoneAuditEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>
+        }
+        update: {
+          args: Prisma.DeliveryZoneAuditEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.DeliveryZoneAuditEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.DeliveryZoneAuditEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.DeliveryZoneAuditEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.DeliveryZoneAuditEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeliveryZoneAuditEventPayload>
+        }
+        aggregate: {
+          args: Prisma.DeliveryZoneAuditEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateDeliveryZoneAuditEvent>
+        }
+        groupBy: {
+          args: Prisma.DeliveryZoneAuditEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.DeliveryZoneAuditEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.DeliveryZoneAuditEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.DeliveryZoneAuditEventCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1263,12 +1338,40 @@ export const OrderStatusEventScalarFieldEnum = {
 export type OrderStatusEventScalarFieldEnum = (typeof OrderStatusEventScalarFieldEnum)[keyof typeof OrderStatusEventScalarFieldEnum]
 
 
+export const DeliveryZoneAuditEventScalarFieldEnum = {
+  id: 'id',
+  zoneId: 'zoneId',
+  changedById: 'changedById',
+  action: 'action',
+  previousValues: 'previousValues',
+  newValues: 'newValues',
+  createdAt: 'createdAt'
+} as const
+
+export type DeliveryZoneAuditEventScalarFieldEnum = (typeof DeliveryZoneAuditEventScalarFieldEnum)[keyof typeof DeliveryZoneAuditEventScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
 } as const
 
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const NullableJsonNullValueInput = {
+  DbNull: DbNull,
+  JsonNull: JsonNull
+} as const
+
+export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -1285,6 +1388,15 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 
 
 
@@ -1423,6 +1535,34 @@ export type EnumPaymentStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$Pr
  * Reference to a field of type 'PaymentStatus[]'
  */
 export type ListEnumPaymentStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PaymentStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'DeliveryZoneAuditAction'
+ */
+export type EnumDeliveryZoneAuditActionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DeliveryZoneAuditAction'>
+    
+
+
+/**
+ * Reference to a field of type 'DeliveryZoneAuditAction[]'
+ */
+export type ListEnumDeliveryZoneAuditActionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DeliveryZoneAuditAction[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
     
 
 
@@ -1599,6 +1739,7 @@ export type GlobalOmitConfig = {
   order?: Prisma.OrderOmit
   orderItem?: Prisma.OrderItemOmit
   orderStatusEvent?: Prisma.OrderStatusEventOmit
+  deliveryZoneAuditEvent?: Prisma.DeliveryZoneAuditEventOmit
 }
 
 /* Types for Logging */
