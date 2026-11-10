@@ -1,29 +1,60 @@
 
 import { Route, Routes } from 'react-router-dom'
 
+// ==========================================
+// SHARED APPLICATION LAYOUT
+// ==========================================
+
 import MainLayout from './components/layout/MainLayout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+
+// ==========================================
+// PUBLIC STOREFRONT
+// ==========================================
 
 import HomePage from './pages/HomePage'
 import ProductsPage from './pages/ProductsPage'
 import ProductDetailsPage from './pages/ProductDetailsPage'
 
+// ==========================================
+// CUSTOMER AUTHENTICATION
+// ==========================================
+
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import AccountPage from './pages/AccountPage'
-
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 
+// ==========================================
+// CUSTOMER FEATURES
+// ==========================================
+
+import AccountPage from './pages/AccountPage'
 import CheckoutPage from './pages/CheckoutPage'
+
+// ==========================================
+// STAFF ADMINISTRATION
+// ==========================================
+
+import StaffOrdersPage from './pages/StaffOrdersPage'
+import StaffDeliveryZonesPage from './pages/StaffDeliveryZonesPage'
+
+// ==========================================
+// FALLBACK PAGE
+// ==========================================
+
 import NotFoundPage from './pages/NotFoundPage'
+
+// ==========================================
+// APPLICATION ROUTES
+// ==========================================
 
 export default function App() {
   return (
     <Routes>
       <Route element={<MainLayout />}>
-        {/* Public pages */}
+        {/* Public storefront */}
         <Route path="/" element={<HomePage />} />
 
         <Route
@@ -44,11 +75,13 @@ export default function App() {
           element={<RegisterPage />}
         />
 
+        {/* Email verification */}
         <Route
           path="/verify-email"
           element={<VerifyEmailPage />}
         />
 
+        {/* Password recovery */}
         <Route
           path="/forgot-password"
           element={<ForgotPasswordPage />}
@@ -59,20 +92,34 @@ export default function App() {
           element={<ResetPasswordPage />}
         />
 
-        {/* Authenticated customer pages */}
+        {/* Authenticated pages */}
         <Route element={<ProtectedRoute />}>
+          {/* Customer account */}
           <Route
             path="/account"
             element={<AccountPage />}
           />
 
+          {/* Customer checkout */}
           <Route
             path="/checkout"
             element={<CheckoutPage />}
           />
+
+          {/* Staff order management */}
+          <Route
+            path="/staff/orders"
+            element={<StaffOrdersPage />}
+          />
+
+          {/* Staff delivery-zone management */}
+          <Route
+            path="/staff/delivery-zones"
+            element={<StaffDeliveryZonesPage />}
+          />
         </Route>
 
-        {/* Unknown routes */}
+        {/* Unrecognized routes */}
         <Route
           path="*"
           element={<NotFoundPage />}

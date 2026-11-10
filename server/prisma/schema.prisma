@@ -13,9 +13,10 @@ datasource db {
 // ==========================================
 
 model Category {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  slug     String    @unique
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+
   products Product[]
 
   createdAt DateTime @default(now())
@@ -39,12 +40,22 @@ model Product {
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
   orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([categoryId])
   @@index([isActive])
+}
+
+// ==========================================
+// CUSTOMER ROLES
+// ==========================================
+
+enum CustomerRole {
+  CUSTOMER
+  STAFF
 }
 
 // ==========================================
@@ -60,15 +71,25 @@ model Customer {
   emailVerifiedAt DateTime?
   isActive        Boolean   @default(true)
 
-  // Authentication sessions
+  // New customers have no staff privileges.
+  role CustomerRole @default(CUSTOMER)
+
+  // Authentication
   sessions CustomerSession[]
 
   // Email verification and password recovery
   actionTokens CustomerActionToken[]
 
+  // Customer orders
+  orders Order[]
+
+  // Staff audit history
+  statusChangesMade OrderStatusEvent[] @relation("StaffOrderStatusChanges")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  orders    Order[]
+
+  @@index([role])
 }
 
 // ==========================================
@@ -90,7 +111,7 @@ model CustomerSession {
 }
 
 // ==========================================
-// ACCOUNT ACTION TOKEN TYPES
+// CUSTOMER ACTION TOKEN TYPES
 // ==========================================
 
 enum CustomerTokenPurpose {
@@ -113,22 +134,22 @@ model CustomerActionToken {
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  // One current token per customer and purpose
   @@unique([customerId, purpose])
-  // Support expired-token cleanup
   @@index([expiresAt])
 }
 
-//
 // ==========================================
-// ORDER AND PAYMENT TYPES
+// FULFILLMENT METHODS
 // ==========================================
-//
 
 enum FulfillmentMethod {
   DELIVERY
   PICKUP
 }
+
+// ==========================================
+// PAYMENT METHODS
+// ==========================================
 
 enum PaymentMethod {
   MTN_MOMO
@@ -138,12 +159,20 @@ enum PaymentMethod {
   CARD
 }
 
+// ==========================================
+// PAYMENT STATUSES
+// ==========================================
+
 enum PaymentStatus {
   PENDING
   PAID
   FAILED
   REFUNDED
 }
+
+// ==========================================
+// ORDER STATUSES
+// ==========================================
 
 enum OrderStatus {
   PENDING
@@ -155,11 +184,9 @@ enum OrderStatus {
   CANCELLED
 }
 
-//
 // ==========================================
 // DELIVERY ZONES
 // ==========================================
-//
 
 model DeliveryZone {
   id       Int     @id @default(autoincrement())
@@ -174,45 +201,50 @@ model DeliveryZone {
   updatedAt DateTime @updatedAt
 }
 
-//
 // ==========================================
 // CUSTOMER ORDERS
 // ==========================================
-//
 
 model Order {
   id          String @id @default(cuid())
   orderNumber String @unique
 
+  // Customer relationship
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
+  // Order fulfillment
   fulfillmentMethod FulfillmentMethod
   status            OrderStatus       @default(PENDING)
 
+  // Payment details
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus @default(PENDING)
 
-  // Customer contact details at order time
+  // Contact information at checkout
   recipientName String
   contactPhone  String
 
-  // Delivery-specific details
+  // Delivery information
   deliveryAddress      String?
   deliveryInstructions String?
 
   deliveryZoneId Int?
   deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
 
-  // Snapshot of the selected zone name
+  // Delivery zone snapshot
   deliveryZoneName String?
 
-  // Values in whole Uganda shillings
+  // Amounts in whole Uganda shillings
   subtotalUgx    Int
   deliveryFeeUgx Int
   totalUgx       Int
 
+  // Purchased products
   items OrderItem[]
+
+  // Staff status-change history
+  statusEvents OrderStatusEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -222,11 +254,9 @@ model Order {
   @@index([deliveryZoneId])
 }
 
-//
 // ==========================================
 // ORDER ITEMS
 // ==========================================
-//
 
 model OrderItem {
   id String @id @default(cuid())
@@ -234,17 +264,48 @@ model OrderItem {
   orderId String
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
+  // Product can be removed without deleting history.
   productId Int?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
-  // Product details captured at checkout
+  // Product details at checkout
   productName String
   productUnit String
 
+  // Price and quantity snapshots
   unitPriceUgx Int
   quantity     Int
   lineTotalUgx Int
 
   @@index([orderId])
   @@index([productId])
+}
+
+// ==========================================
+// ORDER STATUS AUDIT HISTORY
+// ==========================================
+
+model OrderStatusEvent {
+  id String @id @default(cuid())
+
+  // Affected order
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  // Staff member making the change
+  changedById String
+  changedBy   Customer @relation("StaffOrderStatusChanges", fields: [changedById], references: [id], onDelete: Restrict)
+
+  // Previous and new status
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+
+  // Optional explanation
+  note String?
+
+  // Audit timestamp
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([changedById, createdAt])
 }

@@ -22,6 +22,10 @@ import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
 import orderRoutes from './routes/orders.js'
 
+import adminOrdersRouter from './routes/adminOrders.js'
+
+import adminDeliveryZonesRouter from './routes/adminDeliveryZones.js'
+
 // ==========================================
 // INITIALIZE EXPRESS
 // ==========================================
@@ -127,6 +131,21 @@ app.use('/api/auth/password', passwordRecoveryRoutes)
 // GET  /api/orders
 // GET  /api/orders/:orderId
 app.use('/api', orderRoutes)
+
+// ==========================================
+// STAFF ORDER MANAGEMENT
+// ==========================================
+
+app.use('/api/admin/orders', adminOrdersRouter)
+
+// ==========================================
+// STAFF DELIVERY ZONE MANAGEMENT
+// ==========================================
+
+app.use(
+  '/api/admin/delivery-zones',
+  adminDeliveryZonesRouter,
+)
 
 // ==========================================
 // 404 HANDLER

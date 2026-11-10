@@ -9,6 +9,14 @@
 * 🟢 You can import this file directly.
 */
 
+export const CustomerRole = {
+  CUSTOMER: 'CUSTOMER',
+  STAFF: 'STAFF'
+} as const
+
+export type CustomerRole = (typeof CustomerRole)[keyof typeof CustomerRole]
+
+
 export const CustomerTokenPurpose = {
   EMAIL_VERIFICATION: 'EMAIL_VERIFICATION',
   PASSWORD_RESET: 'PASSWORD_RESET'

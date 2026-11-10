@@ -404,7 +404,8 @@ export const ModelName = {
   CustomerActionToken: 'CustomerActionToken',
   DeliveryZone: 'DeliveryZone',
   Order: 'Order',
-  OrderItem: 'OrderItem'
+  OrderItem: 'OrderItem',
+  OrderStatusEvent: 'OrderStatusEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -420,7 +421,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1016,6 +1017,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OrderStatusEvent: {
+      payload: Prisma.$OrderStatusEventPayload<ExtArgs>
+      fields: Prisma.OrderStatusEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OrderStatusEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OrderStatusEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>
+        }
+        findFirst: {
+          args: Prisma.OrderStatusEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OrderStatusEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>
+        }
+        findMany: {
+          args: Prisma.OrderStatusEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>[]
+        }
+        create: {
+          args: Prisma.OrderStatusEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>
+        }
+        createMany: {
+          args: Prisma.OrderStatusEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OrderStatusEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>[]
+        }
+        delete: {
+          args: Prisma.OrderStatusEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>
+        }
+        update: {
+          args: Prisma.OrderStatusEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.OrderStatusEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OrderStatusEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OrderStatusEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.OrderStatusEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderStatusEventPayload>
+        }
+        aggregate: {
+          args: Prisma.OrderStatusEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOrderStatusEvent>
+        }
+        groupBy: {
+          args: Prisma.OrderStatusEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrderStatusEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OrderStatusEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrderStatusEventCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1091,6 +1166,7 @@ export const CustomerScalarFieldEnum = {
   passwordHash: 'passwordHash',
   emailVerifiedAt: 'emailVerifiedAt',
   isActive: 'isActive',
+  role: 'role',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1174,6 +1250,19 @@ export const OrderItemScalarFieldEnum = {
 export type OrderItemScalarFieldEnum = (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
 
 
+export const OrderStatusEventScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  changedById: 'changedById',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  note: 'note',
+  createdAt: 'createdAt'
+} as const
+
+export type OrderStatusEventScalarFieldEnum = (typeof OrderStatusEventScalarFieldEnum)[keyof typeof OrderStatusEventScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -1250,6 +1339,20 @@ export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaM
  * Reference to a field of type 'Boolean'
  */
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
+ * Reference to a field of type 'CustomerRole'
+ */
+export type EnumCustomerRoleFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'CustomerRole'>
+    
+
+
+/**
+ * Reference to a field of type 'CustomerRole[]'
+ */
+export type ListEnumCustomerRoleFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'CustomerRole[]'>
     
 
 
@@ -1495,6 +1598,7 @@ export type GlobalOmitConfig = {
   deliveryZone?: Prisma.DeliveryZoneOmit
   order?: Prisma.OrderOmit
   orderItem?: Prisma.OrderItemOmit
+  orderStatusEvent?: Prisma.OrderStatusEventOmit
 }
 
 /* Types for Logging */
