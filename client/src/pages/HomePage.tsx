@@ -1,43 +1,79 @@
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+
 import {
+  AlertCircle,
   ArrowRight,
   Leaf,
+  LoaderCircle,
   Milk,
+  RefreshCw,
   Search,
   ShieldCheck,
   Truck,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
 import ProductCard from '../components/products/ProductCard'
-import { products, categories } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 
 export default function HomePage() {
-  const [activeCategory, setActiveCategory] = useState('All products')
+  // Products and categories come from the Express API.
+  const {
+    products,
+    categories,
+    status,
+    reloadCatalog,
+  } = useCatalog()
+
+  // Homepage catalogue controls
+  const [activeCategory, setActiveCategory] = useState(
+    'All products',
+  )
+
   const [search, setSearch] = useState('')
 
-  const searchTerm = search.trim().toLowerCase()
+  const isLoading = status === 'loading'
+  const hasError = status === 'error'
+  const isReady = status === 'ready'
 
-  const filteredProducts = products.filter((product) => {
-    const matchesCategory =
-      activeCategory === 'All products' ||
-      product.category === activeCategory
+  // Filter products retrieved from PostgreSQL.
+  const filteredProducts = useMemo(() => {
+    const searchTerm = search.trim().toLowerCase()
 
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm) ||
-      product.category.toLowerCase().includes(searchTerm)
+    return products.filter((product) => {
+      const matchesCategory =
+        activeCategory === 'All products' ||
+        product.category === activeCategory
 
-    return matchesCategory && matchesSearch
-  })
+      const matchesSearch =
+        product.name.toLowerCase().includes(searchTerm) ||
+        product.category.toLowerCase().includes(searchTerm)
+
+      return matchesCategory && matchesSearch
+    })
+  }, [products, activeCategory, search])
+
+  // Restore default catalogue filters.
+  const resetFilters = () => {
+    setSearch('')
+    setActiveCategory('All products')
+  }
 
   return (
-    <main id="home">
-      {/* Hero section */}
+    <main id="home" className="min-h-screen bg-cream">
+      {/* ==========================================
+          HERO SECTION
+      ========================================== */}
       <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 pb-14 pt-12 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:pb-24 lg:pt-20">
+        {/* Hero content */}
         <div className="max-w-xl">
           <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-brand/15 bg-sage px-4 py-2 text-xs font-bold tracking-wide text-brand">
-            <Leaf size={15} aria-hidden="true" />
+            <Leaf
+              size={15}
+              aria-hidden="true"
+            />
+
             FRESH GOODNESS FROM MBARARA
           </div>
 
@@ -51,22 +87,28 @@ export default function HomePage() {
           </h1>
 
           <p className="mt-7 max-w-md text-base leading-8 text-brand/65 sm:text-lg">
-            From creamy milk to delicious yoghurt, discover everyday dairy
-            favourites delivered straight to your doorstep.
+            From creamy milk to delicious yoghurt,
+            discover everyday dairy favourites delivered
+            straight to your doorstep.
           </p>
 
+          {/* Hero actions */}
           <div className="mt-9 flex flex-wrap items-center gap-4">
             <Link
               to="/products"
-              className="inline-flex items-center gap-3 rounded-full bg-brand px-7 py-4 text-sm font-bold text-white shadow-lg shadow-brand/15 hover:-translate-y-1 hover:bg-brand-light"
+              className="inline-flex items-center gap-3 rounded-full bg-brand px-7 py-4 text-sm font-bold text-white shadow-lg shadow-brand/15 transition-all hover:-translate-y-1 hover:bg-brand-light"
             >
               Shop fresh dairy
-              <ArrowRight size={18} aria-hidden="true" />
+
+              <ArrowRight
+                size={18}
+                aria-hidden="true"
+              />
             </Link>
 
             <a
               href="#why-us"
-              className="rounded-full border border-brand/20 px-7 py-4 text-sm font-bold text-brand hover:bg-sage"
+              className="rounded-full border border-brand/20 px-7 py-4 text-sm font-bold text-brand transition-colors hover:bg-sage"
             >
               Why choose us?
             </a>
@@ -75,12 +117,22 @@ export default function HomePage() {
           {/* Hero highlights */}
           <div className="mt-12 flex flex-wrap gap-x-8 gap-y-4 border-t border-brand/10 pt-6">
             <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
-              <Leaf size={17} className="text-brand-light" />
+              <Leaf
+                size={17}
+                className="text-brand-light"
+                aria-hidden="true"
+              />
+
               Quality dairy
             </span>
 
             <span className="flex items-center gap-2 text-xs font-semibold text-brand/75">
-              <Truck size={17} className="text-brand-light" />
+              <Truck
+                size={17}
+                className="text-brand-light"
+                aria-hidden="true"
+              />
+
               Local delivery
             </span>
 
@@ -88,7 +140,9 @@ export default function HomePage() {
               <ShieldCheck
                 size={17}
                 className="text-brand-light"
+                aria-hidden="true"
               />
+
               Easy ordering
             </span>
           </div>
@@ -118,12 +172,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Homepage product catalogue */}
+      {/* ==========================================
+          PRODUCT CATALOGUE
+      ========================================== */}
       <section
         id="products"
         className="scroll-mt-24 bg-white py-20"
       >
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          {/* Catalogue heading and search */}
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
               <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
@@ -135,11 +192,12 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-4 text-sm text-brand/60">
-                Explore our selection of fresh dairy essentials.
+                Explore our selection of fresh dairy
+                essentials.
               </p>
             </div>
 
-            {/* Search products */}
+            {/* Search control */}
             <label className="flex items-center gap-2 rounded-full border border-brand/15 px-4 py-3 focus-within:border-brand-light">
               <Search
                 size={18}
@@ -150,15 +208,18 @@ export default function HomePage() {
               <input
                 type="search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                disabled={!isReady}
                 placeholder="Search products"
                 aria-label="Search products"
-                className="w-36 bg-transparent text-sm text-brand outline-none placeholder:text-brand/40 sm:w-48"
+                className="w-36 bg-transparent text-sm text-brand outline-none placeholder:text-brand/40 disabled:cursor-not-allowed disabled:opacity-50 sm:w-48"
               />
             </label>
           </div>
 
-          {/* Product categories */}
+          {/* Product categories from API */}
           <div
             aria-label="Product categories"
             className="mt-9 flex gap-3 overflow-x-auto pb-3"
@@ -167,9 +228,14 @@ export default function HomePage() {
               <button
                 key={category}
                 type="button"
-                onClick={() => setActiveCategory(category)}
-                aria-pressed={activeCategory === category}
-                className={`shrink-0 rounded-full px-5 py-3 text-xs font-bold ${
+                onClick={() =>
+                  setActiveCategory(category)
+                }
+                disabled={!isReady}
+                aria-pressed={
+                  activeCategory === category
+                }
+                className={`shrink-0 rounded-full px-5 py-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   activeCategory === category
                     ? 'bg-brand text-white'
                     : 'bg-cream text-brand/70 hover:bg-sage'
@@ -180,69 +246,152 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Reusable product cards */}
-          <div className="mt-9 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-              />
-            ))}
-          </div>
+          {/* ======================================
+              API LOADING STATE
+          ====================================== */}
+          {isLoading && (
+            <div
+              role="status"
+              className="flex flex-col items-center justify-center py-20 text-center"
+            >
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-sage">
+                <LoaderCircle
+                  size={36}
+                  className="animate-spin text-brand-light"
+                  aria-hidden="true"
+                />
+              </div>
 
-          {/* Empty results */}
-          {filteredProducts.length === 0 && (
-            <div className="py-16 text-center">
-              <Search
-                size={36}
-                className="mx-auto mb-4 text-brand/30"
-                aria-hidden="true"
-              />
-
-              <h3 className="font-display text-2xl text-brand">
-                No products found
+              <h3 className="mt-6 font-display text-2xl text-brand">
+                Loading fresh dairy
               </h3>
 
-              <p className="mt-2 text-sm text-brand/60">
-                Try a different search or product category.
+              <p className="mt-3 text-sm text-brand/60">
+                Retrieving our latest product catalogue.
+              </p>
+            </div>
+          )}
+
+          {/* ======================================
+              API ERROR STATE
+          ====================================== */}
+          {hasError && (
+            <div
+              role="alert"
+              className="mt-10 rounded-[2rem] bg-cream px-6 py-16 text-center"
+            >
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-amber-50">
+                <AlertCircle
+                  size={36}
+                  className="text-amber-600"
+                  aria-hidden="true"
+                />
+              </div>
+
+              <h3 className="mt-6 font-display text-3xl text-brand">
+                We couldn't load our dairy products
+              </h3>
+
+              <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-brand/60">
+                Our product catalogue is temporarily
+                unavailable. Please check your connection
+                and try again.
               </p>
 
               <button
                 type="button"
-                onClick={() => {
-                  setSearch('')
-                  setActiveCategory('All products')
-                }}
-                className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white"
+                onClick={reloadCatalog}
+                className="mt-7 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3.5 text-sm font-bold text-white transition-colors hover:bg-brand-light"
               >
-                View all products
+                <RefreshCw
+                  size={17}
+                  aria-hidden="true"
+                />
+
+                Try again
               </button>
             </div>
           )}
 
-          <p className="mt-8 text-xs text-brand/50">
-            Sample products and prices for interface development.
-            Final availability and pricing will come from our backend.
-          </p>
+          {/* ======================================
+              SUCCESSFULLY LOADED PRODUCTS
+          ====================================== */}
+          {isReady && (
+            <>
+              {filteredProducts.length > 0 ? (
+                /* Product grid */
+                <div className="mt-9 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {filteredProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                    />
+                  ))}
+                </div>
+              ) : (
+                /* No matching products */
+                <div className="py-16 text-center">
+                  <Search
+                    size={36}
+                    className="mx-auto mb-4 text-brand/30"
+                    aria-hidden="true"
+                  />
 
+                  <h3 className="font-display text-2xl text-brand">
+                    No products found
+                  </h3>
+
+                  <p className="mt-2 text-sm text-brand/60">
+                    Try a different search or product
+                    category.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="mt-5 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-light"
+                  >
+                    View all products
+                  </button>
+                </div>
+              )}
+
+              {/* Development information */}
+              <p className="mt-8 text-xs text-brand/50">
+                Products and prices are currently development
+                samples served from the Loyce Dairies database.
+                Final availability and pricing will be
+                confirmed before launch.
+              </p>
+            </>
+          )}
+
+          {/* Full catalogue link */}
           <div className="mt-10 text-center">
             <Link
               to="/products"
-              className="inline-flex items-center gap-2 rounded-full border border-brand/20 px-7 py-4 text-sm font-bold text-brand hover:bg-sage"
+              className="inline-flex items-center gap-2 rounded-full border border-brand/20 px-7 py-4 text-sm font-bold text-brand transition-colors hover:bg-sage"
             >
               View full catalogue
-              <ArrowRight size={17} aria-hidden="true" />
+
+              <ArrowRight
+                size={17}
+                aria-hidden="true"
+              />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Why choose Loyce */}
+      {/* ==========================================
+          WHY CHOOSE LOYCE
+      ========================================== */}
       <section
         id="why-us"
         className="scroll-mt-24 bg-sage py-20"
       >
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          {/* Section heading */}
           <div className="max-w-xl">
             <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
               THE LOYCE WAY
@@ -253,6 +402,7 @@ export default function HomePage() {
             </h2>
           </div>
 
+          {/* Benefits */}
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {[
               {

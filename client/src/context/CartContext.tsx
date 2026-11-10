@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useCallback,
@@ -8,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 
-import { products } from '../data/products'
+import { useCatalog } from './CatalogContext'
 import type { Product } from '../types/product'
 
 type CartItems = Record<number, number>
@@ -33,10 +34,12 @@ type CartContextValue = {
 
 const STORAGE_KEY = 'loyce-dairies-cart-v1'
 
-const CartContext = createContext<CartContextValue | undefined>(
-  undefined,
-)
+const CartContext = createContext<
+  CartContextValue | undefined
+>(undefined)
 
+// Restore previously saved quantities.
+// Product validation happens after the API loads.
 function loadSavedCart(): CartItems {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -56,20 +59,24 @@ function loadSavedCart(): CartItems {
     const savedItems = parsed as Record<string, unknown>
     const validCart: CartItems = {}
 
-    for (const product of products) {
-      const quantity = savedItems[String(product.id)]
+    for (const [key, value] of Object.entries(savedItems)) {
+      const productId = Number(key)
 
       if (
-        typeof quantity === 'number' &&
-        Number.isSafeInteger(quantity) &&
-        quantity > 0
+        Number.isSafeInteger(productId) &&
+        productId > 0 &&
+        String(productId) === key &&
+        typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value > 0
       ) {
-        validCart[product.id] = Math.min(quantity, 99)
+        validCart[productId] = Math.min(value, 99)
       }
     }
 
     return validCart
   } catch {
+    // Storage may be unavailable or contain invalid JSON.
     return {}
   }
 }
@@ -79,9 +86,13 @@ export function CartProvider({
 }: {
   children: ReactNode
 }) {
+  // Products now come from PostgreSQL through CatalogContext.
+  const { products, status } = useCatalog()
+
   const [cart, setCart] = useState<CartItems>(loadSavedCart)
   const [cartOpen, setCartOpen] = useState(false)
 
+  // Save the basket when quantities change.
   useEffect(() => {
     try {
       if (Object.keys(cart).length === 0) {
@@ -93,13 +104,46 @@ export function CartProvider({
         )
       }
     } catch {
-      // Cart continues working in memory if storage is unavailable.
+      // Keep the in-memory cart functional.
     }
   }, [cart])
 
+  // Remove unavailable product IDs ONLY after the catalogue
+  // has loaded successfully.
+  //
+  // Never erase saved items merely because the API is loading
+  // or temporarily unavailable.
+  useEffect(() => {
+    if (status !== 'ready') return
+
+    const availableIds = new Set(
+      products.map((product) => product.id),
+    )
+
+    setCart((current) => {
+      const updated: CartItems = {}
+      let changed = false
+
+      for (const [key, quantity] of Object.entries(current)) {
+        const productId = Number(key)
+
+        if (availableIds.has(productId)) {
+          updated[productId] = quantity
+        } else {
+          changed = true
+        }
+      }
+
+      return changed ? updated : current
+    })
+  }, [products, status])
+
   const updateCart = useCallback(
     (productId: number, change: number) => {
+      // Don't allow adding products until their identity
+      // has been verified against the API catalogue.
       if (
+        status !== 'ready' ||
         !products.some((product) => product.id === productId) ||
         !Number.isSafeInteger(change)
       ) {
@@ -108,10 +152,15 @@ export function CartProvider({
 
       setCart((current) => {
         const existingQuantity = current[productId] ?? 0
+
         const quantity = Math.max(
           0,
           Math.min(99, existingQuantity + change),
         )
+
+        if (quantity === existingQuantity) {
+          return current
+        }
 
         const updated = { ...current }
 
@@ -124,46 +173,57 @@ export function CartProvider({
         return updated
       })
     },
-    [],
+    [products, status],
   )
 
-  const clearCart = useCallback(() => setCart({}), [])
-  const openCart = useCallback(() => setCartOpen(true), [])
-  const closeCart = useCallback(() => setCartOpen(false), [])
+  const clearCart = useCallback(() => {
+    setCart({})
+  }, [])
 
-  const cartProducts = useMemo<CartProduct[]>(
-    () =>
-      products
-        .filter((product) => (cart[product.id] ?? 0) > 0)
-        .map((product) => {
-          const quantity = cart[product.id] ?? 0
+  const openCart = useCallback(() => {
+    setCartOpen(true)
+  }, [])
 
-          return {
-            product,
-            quantity,
-            lineTotal: product.price * quantity,
-          }
-        }),
-    [cart],
-  )
+  const closeCart = useCallback(() => {
+    setCartOpen(false)
+  }, [])
 
-  const cartCount = useMemo(
-    () =>
-      cartProducts.reduce(
-        (total, item) => total + item.quantity,
+  // Build basket details from the CURRENT API products.
+  const cartProducts = useMemo<CartProduct[]>(() => {
+    return products
+      .filter((product) => (cart[product.id] ?? 0) > 0)
+      .map((product) => {
+        const quantity = cart[product.id] ?? 0
+
+        return {
+          product,
+          quantity,
+          lineTotal: product.price * quantity,
+        }
+      })
+  }, [cart, products])
+
+  // Preserve the saved item count while products are loading.
+  const cartCount = useMemo(() => {
+    if (status !== 'ready') {
+      return Object.values(cart).reduce(
+        (total, quantity) => total + quantity,
         0,
-      ),
-    [cartProducts],
-  )
+      )
+    }
 
-  const cartTotal = useMemo(
-    () =>
-      cartProducts.reduce(
-        (total, item) => total + item.lineTotal,
-        0,
-      ),
-    [cartProducts],
-  )
+    return cartProducts.reduce(
+      (total, item) => total + item.quantity,
+      0,
+    )
+  }, [cart, cartProducts, status])
+
+  const cartTotal = useMemo(() => {
+    return cartProducts.reduce(
+      (total, item) => total + item.lineTotal,
+      0,
+    )
+  }, [cartProducts])
 
   const value = useMemo<CartContextValue>(
     () => ({
@@ -200,7 +260,7 @@ export function CartProvider({
 export function useCart(): CartContextValue {
   const context = useContext(CartContext)
 
-  if (!context) {
+  if (context === undefined) {
     throw new Error(
       'useCart must be used within a CartProvider',
     )

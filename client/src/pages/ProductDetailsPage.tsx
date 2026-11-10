@@ -2,59 +2,79 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
+  LoaderCircle,
   Minus,
   Plus,
+  RefreshCw,
   ShoppingBag,
   Truck,
 } from 'lucide-react'
 
 import ProductCard from '../components/products/ProductCard'
+import { useCatalog } from '../context/CatalogContext'
 import { useCart } from '../context/CartContext'
-import { formatPrice, products } from '../data/products'
+import {
+  formatPrice,
+  products as sampleProducts,
+} from '../data/products'
 
 export default function ProductDetailsPage() {
   const { id } = useParams()
+
+  const {
+    products,
+    status,
+    getProductById,
+    reloadCatalog,
+  } = useCatalog()
+
   const { updateCart, openCart } = useCart()
 
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
 
-  const product = products.find(
-    (item) => String(item.id) === id,
-  )
+  const productId = Number(id)
 
-  // Reset selection when navigating between product details
+  const validId =
+    Number.isSafeInteger(productId) &&
+    productId > 0 &&
+    String(productId) === id
+
+  const product = validId
+    ? getProductById(productId)
+    : undefined
+
+  const isLoading = status === 'loading'
+  const hasError = status === 'error'
+
+  // Reset selections when switching products.
   useEffect(() => {
     setQuantity(1)
     setAdded(false)
   }, [id])
 
-  if (!product) {
-    return (
-      <main className="min-h-screen bg-cream px-5 py-20 text-center">
-        <h1 className="font-display text-4xl text-brand">
-          Product not found
-        </h1>
-
-        <p className="mt-4 text-brand/60">
-          We couldn't find the dairy product you're looking for.
-        </p>
-
-        <Link
-          to="/products"
-          className="mt-8 inline-flex rounded-full bg-brand px-7 py-4 text-sm font-bold text-white"
-        >
-          Browse products
-        </Link>
-      </main>
-    )
-  }
-
+  // Show related products from the API catalogue.
   const relatedProducts = products
-    .filter((item) => item.id !== product.id)
+    .filter((item) => item.id !== product?.id)
     .slice(0, 3)
+
+  // Temporarily preserve highlights for the original
+  // development products until highlights are stored
+  // in PostgreSQL.
+  const matchingSample = product
+    ? sampleProducts.find(
+        (item) =>
+          item.id === product.id &&
+          item.name === product.name &&
+          item.category === product.category,
+      )
+    : undefined
+
+  const highlights =
+    product?.highlights ?? matchingSample?.highlights ?? []
 
   const decreaseQuantity = () => {
     setQuantity((current) => Math.max(1, current - 1))
@@ -67,13 +87,95 @@ export default function ProductDetailsPage() {
   }
 
   const handleAddToCart = () => {
+    if (!product || status !== 'ready') return
+
     updateCart(product.id, quantity)
     setAdded(true)
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <main
+        role="status"
+        className="flex min-h-[60vh] flex-col items-center justify-center bg-cream px-5 text-center"
+      >
+        <LoaderCircle
+          size={42}
+          className="animate-spin text-brand-light"
+          aria-hidden="true"
+        />
+
+        <h1 className="mt-6 font-display text-3xl text-brand">
+          Loading product details
+        </h1>
+
+        <p className="mt-3 text-sm text-brand/60">
+          Retrieving the latest information.
+        </p>
+      </main>
+    )
+  }
+
+  // API error state
+  if (hasError) {
+    return (
+      <main
+        role="alert"
+        className="flex min-h-[60vh] flex-col items-center justify-center bg-cream px-5 text-center"
+      >
+        <AlertCircle
+          size={42}
+          className="text-amber-600"
+          aria-hidden="true"
+        />
+
+        <h1 className="mt-6 font-display text-3xl text-brand">
+          Product temporarily unavailable
+        </h1>
+
+        <p className="mt-3 max-w-md text-sm leading-7 text-brand/60">
+          We couldn't connect to the product catalogue.
+          Please try again.
+        </p>
+
+        <button
+          type="button"
+          onClick={reloadCatalog}
+          className="mt-7 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3.5 text-sm font-bold text-white hover:bg-brand-light"
+        >
+          <RefreshCw size={17} aria-hidden="true" />
+          Try again
+        </button>
+      </main>
+    )
+  }
+
+  // Unknown or unavailable product
+  if (!product) {
+    return (
+      <main className="flex min-h-[60vh] flex-col items-center justify-center bg-cream px-5 text-center">
+        <h1 className="font-display text-4xl text-brand">
+          Product not found
+        </h1>
+
+        <p className="mt-4 text-sm text-brand/60">
+          This dairy product isn't currently available.
+        </p>
+
+        <Link
+          to="/products"
+          className="mt-8 rounded-full bg-brand px-7 py-4 text-sm font-bold text-white hover:bg-brand-light"
+        >
+          Browse products
+        </Link>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-cream">
-      {/* Breadcrumb navigation */}
+      {/* Breadcrumb */}
       <div className="mx-auto max-w-7xl px-5 pt-8 lg:px-8">
         <Link
           to="/products"
@@ -88,11 +190,17 @@ export default function ProductDetailsPage() {
       <section className="mx-auto grid max-w-7xl gap-12 px-5 pb-20 pt-10 lg:grid-cols-2 lg:items-start lg:gap-16 lg:px-8">
         {/* Product image */}
         <div className="relative overflow-hidden rounded-[2rem] bg-sage">
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-[380px] w-full object-cover sm:h-[550px]"
-          />
+          {product.image ? (
+            <img
+              src={product.image}
+              alt={product.name}
+              className="h-[380px] w-full object-cover sm:h-[550px]"
+            />
+          ) : (
+            <div className="flex h-[380px] items-center justify-center text-brand/40 sm:h-[550px]">
+              <ShoppingBag size={60} aria-hidden="true" />
+            </div>
+          )}
 
           {product.badge && (
             <span className="absolute left-6 top-6 rounded-full bg-white px-4 py-2 text-xs font-bold text-brand shadow-sm">
@@ -119,14 +227,16 @@ export default function ProductDetailsPage() {
             {formatPrice(product.price)}
           </p>
 
-          <p className="mt-8 max-w-lg text-base leading-8 text-brand/65">
-            {product.description}
-          </p>
+          {product.description && (
+            <p className="mt-8 max-w-lg text-base leading-8 text-brand/65">
+              {product.description}
+            </p>
+          )}
 
           {/* Product highlights */}
-          {product.highlights && (
+          {highlights.length > 0 && (
             <div className="mt-8 space-y-3">
-              {product.highlights.map((highlight) => (
+              {highlights.map((highlight) => (
                 <div
                   key={highlight}
                   className="flex items-center gap-3 text-sm text-brand/75"
@@ -141,7 +251,7 @@ export default function ProductDetailsPage() {
             </div>
           )}
 
-          {/* Quantity selection */}
+          {/* Quantity selector */}
           <div className="mt-10">
             <p className="mb-4 text-sm font-bold text-brand">
               Quantity
@@ -177,7 +287,7 @@ export default function ProductDetailsPage() {
             </div>
           </div>
 
-          {/* Price calculation */}
+          {/* Total */}
           <div className="mt-8 flex items-center justify-between border-t border-brand/10 pt-6">
             <span className="text-sm font-semibold text-brand/60">
               Total for {quantity}{' '}
@@ -189,7 +299,7 @@ export default function ProductDetailsPage() {
             </span>
           </div>
 
-          {/* Add to cart */}
+          {/* Add to basket */}
           <button
             type="button"
             onClick={handleAddToCart}
@@ -241,8 +351,8 @@ export default function ProductDetailsPage() {
           </div>
 
           <p className="mt-6 text-xs text-brand/45">
-            Product information, descriptions and prices are
-            currently sample data for development.
+            Product information and prices are currently
+            development samples stored in the database.
           </p>
         </div>
       </section>

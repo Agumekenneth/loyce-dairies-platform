@@ -2,14 +2,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  AlertCircle,
+  LoaderCircle,
   Minus,
   Plus,
+  RefreshCw,
   ShoppingBag,
   Trash2,
   X,
 } from 'lucide-react'
 
 import { useCart } from '../../context/CartContext'
+import { useCatalog } from '../../context/CatalogContext'
 import { formatPrice } from '../../data/products'
 
 export default function CartDrawer() {
@@ -23,15 +27,31 @@ export default function CartDrawer() {
     clearCart,
   } = useCart()
 
+  const {
+    status,
+    reloadCatalog,
+  } = useCatalog()
+
   const navigate = useNavigate()
 
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  const confirmClearRef = useRef(false)
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   const [confirmClear, setConfirmClear] = useState(false)
 
-  // Manage focus, keyboard navigation and background scrolling
+  const isLoading = status === 'loading'
+  const hasError = status === 'error'
+  const isReady = status === 'ready'
+
+  // Keep the Escape handler aware of the confirmation state.
+  useEffect(() => {
+    confirmClearRef.current = confirmClear
+  }, [confirmClear])
+
+  // Manage keyboard accessibility and background scrolling.
   useEffect(() => {
     if (!cartOpen) return
 
@@ -47,11 +67,14 @@ export default function CartDrawer() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (confirmClear) {
+        event.preventDefault()
+
+        if (confirmClearRef.current) {
           setConfirmClear(false)
         } else {
           closeCart()
         }
+
         return
       }
 
@@ -66,14 +89,19 @@ export default function CartDrawer() {
           'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])',
         ),
       ).filter(
-        (element) =>
-          element.getClientRects().length > 0,
+        (element) => element.getClientRects().length > 0,
       )
 
       if (focusable.length === 0) return
 
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
+
+      if (!panel.contains(document.activeElement)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+        return
+      }
 
       if (
         event.shiftKey &&
@@ -94,17 +122,29 @@ export default function CartDrawer() {
 
     return () => {
       document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', handleKeyDown)
+
+      document.removeEventListener(
+        'keydown',
+        handleKeyDown,
+      )
+
       previousFocusRef.current?.focus()
     }
-  }, [cartOpen, closeCart, confirmClear])
+  }, [cartOpen, closeCart])
 
-  // Reset confirmation when the drawer closes
+  // Reset confirmation when the drawer closes.
   useEffect(() => {
     if (!cartOpen) {
       setConfirmClear(false)
     }
   }, [cartOpen])
+
+  // Focus the confirmation action when it appears.
+  useEffect(() => {
+    if (cartOpen && confirmClear) {
+      confirmButtonRef.current?.focus()
+    }
+  }, [cartOpen, confirmClear])
 
   const handleExploreProducts = () => {
     closeCart()
@@ -117,6 +157,8 @@ export default function CartDrawer() {
   }
 
   const handleCheckout = () => {
+    if (!isReady || cartCount === 0) return
+
     closeCart()
 
     window.alert(
@@ -137,7 +179,7 @@ export default function CartDrawer() {
         className="absolute inset-0 bg-black/45"
       />
 
-      {/* Shopping cart panel */}
+      {/* Shopping cart drawer */}
       <aside
         ref={panelRef}
         role="dialog"
@@ -145,7 +187,7 @@ export default function CartDrawer() {
         aria-labelledby="cart-title"
         className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-cream p-5 shadow-2xl sm:p-6"
       >
-        {/* Cart header */}
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-brand/10 pb-5">
           <div>
             <h2
@@ -175,9 +217,67 @@ export default function CartDrawer() {
           </button>
         </div>
 
-        {/* Cart products */}
+        {/* Cart content */}
         <div className="min-h-0 flex-1 overflow-y-auto py-6">
-          {cartCount === 0 ? (
+          {/* Loading state */}
+          {isLoading ? (
+            <div
+              role="status"
+              className="flex h-full flex-col items-center justify-center px-4 text-center"
+            >
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-sage">
+                <LoaderCircle
+                  size={36}
+                  className="animate-spin text-brand-light"
+                  aria-hidden="true"
+                />
+              </div>
+
+              <h3 className="mt-6 font-display text-2xl text-brand">
+                Loading your basket
+              </h3>
+
+              <p className="mt-3 max-w-xs text-sm leading-6 text-brand/60">
+                Retrieving the latest product information.
+              </p>
+            </div>
+          ) : hasError ? (
+            /* API error state */
+            <div
+              role="alert"
+              className="flex h-full flex-col items-center justify-center px-4 text-center"
+            >
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-50">
+                <AlertCircle
+                  size={36}
+                  className="text-amber-600"
+                  aria-hidden="true"
+                />
+              </div>
+
+              <h3 className="mt-6 font-display text-2xl text-brand">
+                Basket temporarily unavailable
+              </h3>
+
+              <p className="mt-3 max-w-xs text-sm leading-6 text-brand/60">
+                We couldn't connect to our product catalogue.
+                Your saved basket quantities are preserved.
+              </p>
+
+              <button
+                type="button"
+                onClick={reloadCatalog}
+                className="mt-7 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3.5 text-sm font-bold text-white transition-colors hover:bg-brand-light"
+              >
+                <RefreshCw
+                  size={17}
+                  aria-hidden="true"
+                />
+                Try again
+              </button>
+            </div>
+          ) : cartCount === 0 ? (
+            /* Empty basket */
             <div className="flex h-full flex-col items-center justify-center px-4 text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-sage">
                 <ShoppingBag
@@ -205,6 +305,7 @@ export default function CartDrawer() {
               </button>
             </div>
           ) : (
+            /* Basket products */
             <div className="space-y-5">
               {cartProducts.map(
                 ({ product, quantity, lineTotal }) => (
@@ -283,9 +384,9 @@ export default function CartDrawer() {
 
         {/* Cart footer */}
         <div className="border-t border-brand/10 pt-5">
+          {/* Clear basket */}
           {cartCount > 0 && (
             <>
-              {/* Clear basket */}
               {!confirmClear ? (
                 <div className="mb-5 flex justify-end">
                   <button
@@ -307,12 +408,13 @@ export default function CartDrawer() {
                   </p>
 
                   <p className="mt-2 text-xs leading-5 text-red-700">
-                    This will remove all products from your
-                    basket.
+                    This will remove all products from
+                    your basket.
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
                     <button
+                      ref={confirmButtonRef}
                       type="button"
                       onClick={handleClearCart}
                       className="rounded-full bg-red-600 px-5 py-2.5 text-xs font-bold text-white transition-colors hover:bg-red-700"
@@ -340,7 +442,7 @@ export default function CartDrawer() {
             </span>
 
             <span className="text-lg font-extrabold tabular-nums text-brand">
-              {formatPrice(cartTotal)}
+              {isReady ? formatPrice(cartTotal) : '—'}
             </span>
           </div>
 
@@ -348,10 +450,10 @@ export default function CartDrawer() {
             Delivery charges will be calculated at checkout.
           </p>
 
-          {/* Checkout */}
+          {/* Checkout button */}
           <button
             type="button"
-            disabled={cartCount === 0}
+            disabled={!isReady || cartCount === 0}
             onClick={handleCheckout}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-brand px-6 py-4 text-sm font-bold text-white transition-colors hover:bg-brand-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
           >

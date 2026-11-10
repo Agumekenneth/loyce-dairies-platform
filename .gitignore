@@ -39,4 +39,10 @@ Thumbs.db
 *.sqlite3
 
 # Local uploads
-uploads/
+uploads/client/.env
+server/.env
+client/node_modules/
+server/node_modules/
+client/dist/
+server/dist/
+server/src/generated/prisma/
