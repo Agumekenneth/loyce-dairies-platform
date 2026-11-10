@@ -10,4 +10,7 @@
  */
 export type * from './models/Category.js'
 export type * from './models/Product.js'
+export type * from './models/Customer.js'
+export type * from './models/CustomerSession.js'
+export type * from './models/CustomerActionToken.js'
 export type * from './commonInputTypes.js'

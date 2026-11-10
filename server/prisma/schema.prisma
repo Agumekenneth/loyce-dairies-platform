@@ -8,6 +8,10 @@ datasource db {
   provider = "postgresql"
 }
 
+// ==========================================
+// PRODUCT CATEGORIES
+// ==========================================
+
 model Category {
   id       Int       @id @default(autoincrement())
   name     String    @unique
@@ -17,6 +21,10 @@ model Category {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ==========================================
+// DAIRY PRODUCTS
+// ==========================================
 
 model Product {
   id          Int     @id @default(autoincrement())
@@ -36,4 +44,75 @@ model Product {
 
   @@index([categoryId])
   @@index([isActive])
+}
+
+// ==========================================
+// CUSTOMER ACCOUNTS
+// ==========================================
+
+model Customer {
+  id              String    @id @default(cuid())
+  fullName        String
+  email           String    @unique
+  phone           String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  isActive        Boolean   @default(true)
+
+  // Authentication sessions
+  sessions CustomerSession[]
+
+  // Email verification and password recovery
+  actionTokens CustomerActionToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// CUSTOMER LOGIN SESSIONS
+// ==========================================
+
+model CustomerSession {
+  id         String    @id @default(cuid())
+  customerId String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+// ==========================================
+// ACCOUNT ACTION TOKEN TYPES
+// ==========================================
+
+enum CustomerTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// ==========================================
+// EMAIL VERIFICATION AND PASSWORD RESET
+// ==========================================
+
+model CustomerActionToken {
+  id         String               @id @default(cuid())
+  customerId String
+  purpose    CustomerTokenPurpose
+  tokenHash  String               @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime             @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // One current token per customer and purpose
+  @@unique([customerId, purpose])
+  // Support expired-token cleanup
+  @@index([expiresAt])
 }

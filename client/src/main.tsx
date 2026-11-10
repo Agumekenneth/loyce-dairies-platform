@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 
 import App from './App'
 
+import { AuthProvider } from './context/AuthContext'
 import { CatalogProvider } from './context/CatalogContext'
 import { CartProvider } from './context/CartContext'
 
@@ -15,11 +16,13 @@ ReactDOM.createRoot(
 ).render(
   <React.StrictMode>
     <BrowserRouter>
-      <CatalogProvider>
-        <CartProvider>
-          <App />
-        </CartProvider>
-      </CatalogProvider>
+      <AuthProvider>
+        <CatalogProvider>
+          <CartProvider>
+            <App />
+          </CartProvider>
+        </CatalogProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

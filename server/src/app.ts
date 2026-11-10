@@ -1,33 +1,63 @@
 
 import express from 'express'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 
 import type { ErrorRequestHandler } from 'express'
 
+// Product catalogue
 import catalogRoutes from './routes/catalog.js'
+
+// Customer registration
+import authRoutes from './routes/auth.js'
+
+// Customer login, sessions and logout
+import sessionRoutes from './routes/sessions.js'
+
+// Email verification
+import emailVerificationRoutes from './routes/emailVerification.js'
+
+// Password recovery
+import passwordRecoveryRoutes from './routes/passwordRecovery.js'
+
+// ==========================================
+// INITIALIZE EXPRESS
+// ==========================================
 
 const app = express()
 
-// Basic security
+// ==========================================
+// BASIC SECURITY
+// ==========================================
+
 app.disable('x-powered-by')
 
-// Allow requests from the frontend
+// ==========================================
+// MIDDLEWARE
+// ==========================================
+
 app.use(
   cors({
     origin:
       process.env.CLIENT_URL ??
       'http://localhost:5173',
+
+    credentials: true,
   }),
 )
 
-// Parse JSON requests
 app.use(
   express.json({
     limit: '1mb',
   }),
 )
 
-// API welcome endpoint
+app.use(cookieParser())
+
+// ==========================================
+// API INFORMATION
+// ==========================================
+
 app.get('/api', (_req, res) => {
   res.status(200).json({
     success: true,
@@ -35,7 +65,10 @@ app.get('/api', (_req, res) => {
   })
 })
 
-// API health check
+// ==========================================
+// HEALTH CHECK
+// ==========================================
+
 app.get('/api/health', (_req, res) => {
   res.status(200).json({
     success: true,
@@ -45,25 +78,66 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-// Catalogue routes
+// ==========================================
+// PRODUCT CATALOGUE
+// ==========================================
+
 app.use('/api', catalogRoutes)
 
-// Handle undefined routes
+// ==========================================
+// CUSTOMER REGISTRATION
+// ==========================================
+
+// POST /api/auth/register
+app.use('/api/auth', authRoutes)
+
+// ==========================================
+// CUSTOMER LOGIN AND SESSIONS
+// ==========================================
+
+// POST /api/auth/login
+// GET  /api/auth/me
+// POST /api/auth/logout
+app.use('/api/auth', sessionRoutes)
+
+// ==========================================
+// EMAIL VERIFICATION
+// ==========================================
+
+// POST /api/auth/email/verification/request
+// POST /api/auth/email/verification/confirm
+app.use('/api/auth/email', emailVerificationRoutes)
+
+// ==========================================
+// PASSWORD RECOVERY
+// ==========================================
+
+// POST /api/auth/password/forgot
+// POST /api/auth/password/reset
+app.use('/api/auth/password', passwordRecoveryRoutes)
+
+// ==========================================
+// 404 HANDLER
+// ==========================================
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.method} ${req.originalUrl} not found`,
+    message: `Route ${req.method} ${req.path} not found`,
   })
 })
 
-// Centralized error handling
+// ==========================================
+// CENTRALIZED ERROR HANDLER
+// ==========================================
+
 const errorHandler: ErrorRequestHandler = (
   error,
   _req,
   res,
   _next,
 ) => {
-  console.error('API error:', error)
+  console.error('Loyce Dairies API error:', error)
 
   res.status(500).json({
     success: false,
