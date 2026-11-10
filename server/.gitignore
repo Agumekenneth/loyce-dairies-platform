@@ -1,0 +1,5 @@
+
+# Backend local files
+server/.env
+server/node_modules/
+server/dist/
