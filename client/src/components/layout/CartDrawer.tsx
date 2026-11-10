@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+
 import {
   AlertCircle,
   LoaderCircle,
@@ -16,7 +17,17 @@ import { useCart } from '../../context/CartContext'
 import { useCatalog } from '../../context/CatalogContext'
 import { formatPrice } from '../../data/products'
 
+// ==========================================
+// SHOPPING CART DRAWER
+// ==========================================
+
 export default function CartDrawer() {
+  const navigate = useNavigate()
+
+  // ==========================================
+  // CART CONTEXT
+  // ==========================================
+
   const {
     cartProducts,
     cartCount,
@@ -27,56 +38,87 @@ export default function CartDrawer() {
     clearCart,
   } = useCart()
 
-  const {
-    status,
-    reloadCatalog,
-  } = useCatalog()
+  // ==========================================
+  // CATALOGUE CONTEXT
+  // ==========================================
 
-  const navigate = useNavigate()
-
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLElement>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
-  const confirmClearRef = useRef(false)
-  const confirmButtonRef = useRef<HTMLButtonElement>(null)
-
-  const [confirmClear, setConfirmClear] = useState(false)
+  const { status, reloadCatalog } = useCatalog()
 
   const isLoading = status === 'loading'
   const hasError = status === 'error'
   const isReady = status === 'ready'
 
-  // Keep the Escape handler aware of the confirmation state.
+  // ==========================================
+  // REFS AND LOCAL STATE
+  // ==========================================
+
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
+
+  const previousFocusRef = useRef<HTMLElement | null>(
+    null,
+  )
+
+  const confirmClearRef = useRef(false)
+
+  const confirmButtonRef =
+    useRef<HTMLButtonElement>(null)
+
+  const [confirmClear, setConfirmClear] =
+    useState(false)
+
+  // ==========================================
+  // SYNCHRONIZE CONFIRMATION STATE
+  // ==========================================
+
   useEffect(() => {
     confirmClearRef.current = confirmClear
   }, [confirmClear])
 
-  // Manage keyboard accessibility and background scrolling.
+  // ==========================================
+  // ACCESSIBILITY AND SCROLL MANAGEMENT
+  // ==========================================
+
   useEffect(() => {
     if (!cartOpen) return
 
+    // Remember the previously focused element.
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null
 
-    const previousOverflow = document.body.style.overflow
+    // Prevent background scrolling.
+    const previousOverflow =
+      document.body.style.overflow
 
     document.body.style.overflow = 'hidden'
+
+    // Focus the cart close button.
     closeButtonRef.current?.focus()
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // ======================================
+      // ESCAPE KEY
+      // ======================================
+
       if (event.key === 'Escape') {
         event.preventDefault()
 
         if (confirmClearRef.current) {
+          // Cancel clear confirmation first.
           setConfirmClear(false)
         } else {
+          // Otherwise close the drawer.
           closeCart()
         }
 
         return
       }
+
+      // ======================================
+      // TAB KEY — FOCUS TRAP
+      // ======================================
 
       if (event.key !== 'Tab') return
 
@@ -86,10 +128,17 @@ export default function CartDrawer() {
 
       const focusable = Array.from(
         panel.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])',
+          [
+            'button:not([disabled])',
+            'a[href]',
+            'input:not([disabled])',
+            'select:not([disabled])',
+            'textarea:not([disabled])',
+          ].join(', '),
         ),
       ).filter(
-        (element) => element.getClientRects().length > 0,
+        (element) =>
+          element.getClientRects().length > 0,
       )
 
       if (focusable.length === 0) return
@@ -97,19 +146,30 @@ export default function CartDrawer() {
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
 
+      // Keep focus inside the cart drawer.
       if (!panel.contains(document.activeElement)) {
         event.preventDefault()
-        ;(event.shiftKey ? last : first).focus()
+
+        if (event.shiftKey) {
+          last.focus()
+        } else {
+          first.focus()
+        }
+
         return
       }
 
+      // Wrap backward navigation.
       if (
         event.shiftKey &&
         document.activeElement === first
       ) {
         event.preventDefault()
         last.focus()
-      } else if (
+      }
+
+      // Wrap forward navigation.
+      else if (
         !event.shiftKey &&
         document.activeElement === last
       ) {
@@ -118,59 +178,109 @@ export default function CartDrawer() {
       }
     }
 
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener(
+      'keydown',
+      handleKeyDown,
+    )
+
+    // ======================================
+    // CLEANUP
+    // ======================================
 
     return () => {
-      document.body.style.overflow = previousOverflow
+      document.body.style.overflow =
+        previousOverflow
 
       document.removeEventListener(
         'keydown',
         handleKeyDown,
       )
 
+      // Restore focus when the drawer closes.
       previousFocusRef.current?.focus()
     }
   }, [cartOpen, closeCart])
 
-  // Reset confirmation when the drawer closes.
+  // ==========================================
+  // RESET CONFIRMATION WHEN CART CLOSES
+  // ==========================================
+
   useEffect(() => {
     if (!cartOpen) {
       setConfirmClear(false)
     }
   }, [cartOpen])
 
-  // Focus the confirmation action when it appears.
+  // ==========================================
+  // FOCUS CLEAR CONFIRMATION BUTTON
+  // ==========================================
+
   useEffect(() => {
     if (cartOpen && confirmClear) {
       confirmButtonRef.current?.focus()
     }
   }, [cartOpen, confirmClear])
 
+  // ==========================================
+  // NAVIGATION HANDLERS
+  // ==========================================
+
   const handleExploreProducts = () => {
     closeCart()
+
     navigate('/products')
   }
 
+  // ==========================================
+  // CLEAR SHOPPING CART
+  // ==========================================
+
   const handleClearCart = () => {
     clearCart()
+
     setConfirmClear(false)
   }
 
-  const handleCheckout = () => {
-    if (!isReady || cartCount === 0) return
+  // ==========================================
+  // CONTINUE TO CHECKOUT
+  // ==========================================
 
+  const handleCheckout = () => {
+    // Do not proceed if the catalogue is unavailable
+    // or the shopping cart contains no products.
+    if (
+      !isReady ||
+      cartCount === 0 ||
+      cartProducts.length === 0
+    ) {
+      return
+    }
+
+    // Close the drawer before navigating.
     closeCart()
 
-    window.alert(
-      'Checkout will be available in a later milestone.',
-    )
+    // The /checkout route is protected by
+    // ProtectedRoute in App.tsx.
+    //
+    // Authenticated customers proceed to checkout.
+    // Guests are redirected to /login.
+    //
+    // Cart contents remain intact.
+    navigate('/checkout')
   }
+
+  // ==========================================
+  // DO NOT RENDER WHEN CLOSED
+  // ==========================================
 
   if (!cartOpen) return null
 
   return (
     <div className="fixed inset-0 z-50">
-      {/* Background overlay */}
+      {/* ======================================
+          BACKGROUND OVERLAY
+      ====================================== */}
+
       <button
         type="button"
         aria-label="Close shopping cart"
@@ -179,7 +289,10 @@ export default function CartDrawer() {
         className="absolute inset-0 bg-black/45"
       />
 
-      {/* Shopping cart drawer */}
+      {/* ======================================
+          CART DRAWER PANEL
+      ====================================== */}
+
       <aside
         ref={panelRef}
         role="dialog"
@@ -187,7 +300,10 @@ export default function CartDrawer() {
         aria-labelledby="cart-title"
         className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-cream p-5 shadow-2xl sm:p-6"
       >
-        {/* Header */}
+        {/* ==================================
+            DRAWER HEADER
+        ================================== */}
+
         <div className="flex items-center justify-between border-b border-brand/10 pb-5">
           <div>
             <h2
@@ -206,6 +322,7 @@ export default function CartDrawer() {
             </p>
           </div>
 
+          {/* Close drawer */}
           <button
             ref={closeButtonRef}
             type="button"
@@ -217,9 +334,15 @@ export default function CartDrawer() {
           </button>
         </div>
 
-        {/* Cart content */}
+        {/* ==================================
+            CART CONTENT
+        ================================== */}
+
         <div className="min-h-0 flex-1 overflow-y-auto py-6">
-          {/* Loading state */}
+          {/* ==================================
+              LOADING STATE
+          ================================== */}
+
           {isLoading ? (
             <div
               role="status"
@@ -242,7 +365,10 @@ export default function CartDrawer() {
               </p>
             </div>
           ) : hasError ? (
-            /* API error state */
+            /* ==================================
+                CATALOGUE ERROR STATE
+            ================================== */
+
             <div
               role="alert"
               className="flex h-full flex-col items-center justify-center px-4 text-center"
@@ -260,24 +386,31 @@ export default function CartDrawer() {
               </h3>
 
               <p className="mt-3 max-w-xs text-sm leading-6 text-brand/60">
-                We couldn't connect to our product catalogue.
-                Your saved basket quantities are preserved.
+                We couldn't connect to our product
+                catalogue. Your saved basket quantities
+                are preserved.
               </p>
 
               <button
                 type="button"
-                onClick={reloadCatalog}
+                onClick={() => {
+                  void reloadCatalog()
+                }}
                 className="mt-7 inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3.5 text-sm font-bold text-white transition-colors hover:bg-brand-light"
               >
                 <RefreshCw
                   size={17}
                   aria-hidden="true"
                 />
+
                 Try again
               </button>
             </div>
           ) : cartCount === 0 ? (
-            /* Empty basket */
+            /* ==================================
+                EMPTY SHOPPING CART
+            ================================== */
+
             <div className="flex h-full flex-col items-center justify-center px-4 text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-sage">
                 <ShoppingBag
@@ -292,8 +425,8 @@ export default function CartDrawer() {
               </h3>
 
               <p className="mt-3 max-w-xs text-sm leading-6 text-brand/60">
-                Your next dairy favourite is just a few
-                clicks away.
+                Your next dairy favourite is just a
+                few clicks away.
               </p>
 
               <button
@@ -305,10 +438,17 @@ export default function CartDrawer() {
               </button>
             </div>
           ) : (
-            /* Basket products */
+            /* ==================================
+                SHOPPING CART PRODUCTS
+            ================================== */
+
             <div className="space-y-5">
               {cartProducts.map(
-                ({ product, quantity, lineTotal }) => (
+                ({
+                  product,
+                  quantity,
+                  lineTotal,
+                }) => (
                   <article
                     key={product.id}
                     className="flex items-center gap-3 border-b border-brand/10 pb-5 sm:gap-4"
@@ -336,16 +476,23 @@ export default function CartDrawer() {
                       </p>
                     </div>
 
-                    {/* Quantity controls */}
+                    {/* ==================================
+                        QUANTITY CONTROLS
+                    ================================== */}
+
                     <div
                       role="group"
                       aria-label={`Quantity for ${product.name}`}
                       className="flex shrink-0 items-center rounded-full border border-brand/15 bg-white"
                     >
+                      {/* Decrease quantity */}
                       <button
                         type="button"
                         onClick={() =>
-                          updateCart(product.id, -1)
+                          updateCart(
+                            product.id,
+                            -1,
+                          )
                         }
                         aria-label={`Remove one ${product.name}`}
                         className="flex h-9 w-9 items-center justify-center rounded-l-full text-brand transition-colors hover:bg-sage focus-visible:outline-2 focus-visible:outline-brand"
@@ -356,14 +503,19 @@ export default function CartDrawer() {
                         />
                       </button>
 
+                      {/* Current quantity */}
                       <span className="min-w-5 text-center text-sm font-bold tabular-nums text-brand">
                         {quantity}
                       </span>
 
+                      {/* Increase quantity */}
                       <button
                         type="button"
                         onClick={() =>
-                          updateCart(product.id, 1)
+                          updateCart(
+                            product.id,
+                            1,
+                          )
                         }
                         disabled={quantity >= 99}
                         aria-label={`Add one ${product.name}`}
@@ -382,26 +534,39 @@ export default function CartDrawer() {
           )}
         </div>
 
-        {/* Cart footer */}
+        {/* ==================================
+            CART FOOTER
+        ================================== */}
+
         <div className="border-t border-brand/10 pt-5">
-          {/* Clear basket */}
+          {/* ==================================
+              CLEAR BASKET
+          ================================== */}
+
           {cartCount > 0 && (
             <>
               {!confirmClear ? (
                 <div className="mb-5 flex justify-end">
                   <button
                     type="button"
-                    onClick={() => setConfirmClear(true)}
+                    onClick={() => {
+                      setConfirmClear(true)
+                    }}
                     className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
                   >
                     <Trash2
                       size={15}
                       aria-hidden="true"
                     />
+
                     Clear basket
                   </button>
                 </div>
               ) : (
+                /* ==================================
+                    CLEAR CART CONFIRMATION
+                ================================== */
+
                 <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4">
                   <p className="text-sm font-bold text-red-800">
                     Clear your basket?
@@ -424,7 +589,9 @@ export default function CartDrawer() {
 
                     <button
                       type="button"
-                      onClick={() => setConfirmClear(false)}
+                      onClick={() => {
+                        setConfirmClear(false)
+                      }}
                       className="rounded-full border border-red-200 bg-white px-5 py-2.5 text-xs font-bold text-red-700 transition-colors hover:bg-red-100"
                     >
                       Cancel
@@ -435,25 +602,38 @@ export default function CartDrawer() {
             </>
           )}
 
-          {/* Subtotal */}
+          {/* ==================================
+              CART SUBTOTAL
+          ================================== */}
+
           <div className="mb-5 flex items-center justify-between gap-4">
             <span className="text-lg font-bold text-brand">
               Subtotal
             </span>
 
             <span className="text-lg font-extrabold tabular-nums text-brand">
-              {isReady ? formatPrice(cartTotal) : '—'}
+              {isReady
+                ? formatPrice(cartTotal)
+                : '—'}
             </span>
           </div>
 
           <p className="mb-4 text-xs leading-5 text-brand/60">
-            Delivery charges will be calculated at checkout.
+            Delivery charges, where applicable,
+            will be calculated at checkout.
           </p>
 
-          {/* Checkout button */}
+          {/* ==================================
+              CONTINUE TO CHECKOUT
+          ================================== */}
+
           <button
             type="button"
-            disabled={!isReady || cartCount === 0}
+            disabled={
+              !isReady ||
+              cartCount === 0 ||
+              cartProducts.length === 0
+            }
             onClick={handleCheckout}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-brand px-6 py-4 text-sm font-bold text-white transition-colors hover:bg-brand-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -461,6 +641,7 @@ export default function CartDrawer() {
               size={18}
               aria-hidden="true"
             />
+
             Continue to checkout
           </button>
 

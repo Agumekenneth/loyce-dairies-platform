@@ -66,3 +66,18 @@ export type CustomerSession = Prisma.CustomerSessionModel
  * 
  */
 export type CustomerActionToken = Prisma.CustomerActionTokenModel
+/**
+ * Model DeliveryZone
+ * 
+ */
+export type DeliveryZone = Prisma.DeliveryZoneModel
+/**
+ * Model Order
+ * 
+ */
+export type Order = Prisma.OrderModel
+/**
+ * Model OrderItem
+ * 
+ */
+export type OrderItem = Prisma.OrderItemModel

@@ -39,8 +39,9 @@ model Product {
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orderItems OrderItem[]
 
   @@index([categoryId])
   @@index([isActive])
@@ -67,6 +68,7 @@ model Customer {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orders    Order[]
 }
 
 // ==========================================
@@ -115,4 +117,134 @@ model CustomerActionToken {
   @@unique([customerId, purpose])
   // Support expired-token cleanup
   @@index([expiresAt])
+}
+
+//
+// ==========================================
+// ORDER AND PAYMENT TYPES
+// ==========================================
+//
+
+enum FulfillmentMethod {
+  DELIVERY
+  PICKUP
+}
+
+enum PaymentMethod {
+  MTN_MOMO
+  AIRTEL_MONEY
+  CASH_ON_DELIVERY
+  CASH_ON_PICKUP
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+//
+// ==========================================
+// DELIVERY ZONES
+// ==========================================
+//
+
+model DeliveryZone {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  slug     String  @unique
+  feeUgx   Int
+  isActive Boolean @default(false)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//
+// ==========================================
+// CUSTOMER ORDERS
+// ==========================================
+//
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  fulfillmentMethod FulfillmentMethod
+  status            OrderStatus       @default(PENDING)
+
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // Customer contact details at order time
+  recipientName String
+  contactPhone  String
+
+  // Delivery-specific details
+  deliveryAddress      String?
+  deliveryInstructions String?
+
+  deliveryZoneId Int?
+  deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+
+  // Snapshot of the selected zone name
+  deliveryZoneName String?
+
+  // Values in whole Uganda shillings
+  subtotalUgx    Int
+  deliveryFeeUgx Int
+  totalUgx       Int
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId, createdAt])
+  @@index([status])
+  @@index([deliveryZoneId])
+}
+
+//
+// ==========================================
+// ORDER ITEMS
+// ==========================================
+//
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Product details captured at checkout
+  productName String
+  productUnit String
+
+  unitPriceUgx Int
+  quantity     Int
+  lineTotalUgx Int
+
+  @@index([orderId])
+  @@index([productId])
 }

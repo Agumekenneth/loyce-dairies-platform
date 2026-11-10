@@ -55,7 +55,10 @@ export const ModelName = {
   Product: 'Product',
   Customer: 'Customer',
   CustomerSession: 'CustomerSession',
-  CustomerActionToken: 'CustomerActionToken'
+  CustomerActionToken: 'CustomerActionToken',
+  DeliveryZone: 'DeliveryZone',
+  Order: 'Order',
+  OrderItem: 'OrderItem'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -140,6 +143,57 @@ export const CustomerActionTokenScalarFieldEnum = {
 } as const
 
 export type CustomerActionTokenScalarFieldEnum = (typeof CustomerActionTokenScalarFieldEnum)[keyof typeof CustomerActionTokenScalarFieldEnum]
+
+
+export const DeliveryZoneScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  slug: 'slug',
+  feeUgx: 'feeUgx',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type DeliveryZoneScalarFieldEnum = (typeof DeliveryZoneScalarFieldEnum)[keyof typeof DeliveryZoneScalarFieldEnum]
+
+
+export const OrderScalarFieldEnum = {
+  id: 'id',
+  orderNumber: 'orderNumber',
+  customerId: 'customerId',
+  fulfillmentMethod: 'fulfillmentMethod',
+  status: 'status',
+  paymentMethod: 'paymentMethod',
+  paymentStatus: 'paymentStatus',
+  recipientName: 'recipientName',
+  contactPhone: 'contactPhone',
+  deliveryAddress: 'deliveryAddress',
+  deliveryInstructions: 'deliveryInstructions',
+  deliveryZoneId: 'deliveryZoneId',
+  deliveryZoneName: 'deliveryZoneName',
+  subtotalUgx: 'subtotalUgx',
+  deliveryFeeUgx: 'deliveryFeeUgx',
+  totalUgx: 'totalUgx',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof OrderScalarFieldEnum]
+
+
+export const OrderItemScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  productId: 'productId',
+  productName: 'productName',
+  productUnit: 'productUnit',
+  unitPriceUgx: 'unitPriceUgx',
+  quantity: 'quantity',
+  lineTotalUgx: 'lineTotalUgx'
+} as const
+
+export type OrderItemScalarFieldEnum = (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
 
 
 export const SortOrder = {

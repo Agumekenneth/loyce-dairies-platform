@@ -16,6 +16,7 @@ import VerifyEmailPage from './pages/VerifyEmailPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 
+import CheckoutPage from './pages/CheckoutPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
@@ -23,10 +24,7 @@ export default function App() {
     <Routes>
       <Route element={<MainLayout />}>
         {/* Public pages */}
-        <Route
-          path="/"
-          element={<HomePage />}
-        />
+        <Route path="/" element={<HomePage />} />
 
         <Route
           path="/products"
@@ -38,24 +36,19 @@ export default function App() {
           element={<ProductDetailsPage />}
         />
 
-        {/* Customer authentication */}
-        <Route
-          path="/login"
-          element={<LoginPage />}
-        />
+        {/* Authentication */}
+        <Route path="/login" element={<LoginPage />} />
 
         <Route
           path="/register"
           element={<RegisterPage />}
         />
 
-        {/* Email verification */}
         <Route
           path="/verify-email"
           element={<VerifyEmailPage />}
         />
 
-        {/* Password recovery */}
         <Route
           path="/forgot-password"
           element={<ForgotPasswordPage />}
@@ -66,15 +59,20 @@ export default function App() {
           element={<ResetPasswordPage />}
         />
 
-        {/* Protected customer account */}
+        {/* Authenticated customer pages */}
         <Route element={<ProtectedRoute />}>
           <Route
             path="/account"
             element={<AccountPage />}
           />
+
+          <Route
+            path="/checkout"
+            element={<CheckoutPage />}
+          />
         </Route>
 
-        {/* Undefined routes */}
+        {/* Unknown routes */}
         <Route
           path="*"
           element={<NotFoundPage />}

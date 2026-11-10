@@ -20,6 +20,8 @@ import emailVerificationRoutes from './routes/emailVerification.js'
 // Password recovery
 import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
+import orderRoutes from './routes/orders.js'
+
 // ==========================================
 // INITIALIZE EXPRESS
 // ==========================================
@@ -115,6 +117,16 @@ app.use('/api/auth/email', emailVerificationRoutes)
 // POST /api/auth/password/forgot
 // POST /api/auth/password/reset
 app.use('/api/auth/password', passwordRecoveryRoutes)
+
+// ==========================================
+// DELIVERY ZONES AND CUSTOMER ORDERS
+// ==========================================
+
+// GET  /api/delivery-zones
+// POST /api/orders/checkout
+// GET  /api/orders
+// GET  /api/orders/:orderId
+app.use('/api', orderRoutes)
 
 // ==========================================
 // 404 HANDLER

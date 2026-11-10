@@ -15,3 +15,45 @@ export const CustomerTokenPurpose = {
 } as const
 
 export type CustomerTokenPurpose = (typeof CustomerTokenPurpose)[keyof typeof CustomerTokenPurpose]
+
+
+export const FulfillmentMethod = {
+  DELIVERY: 'DELIVERY',
+  PICKUP: 'PICKUP'
+} as const
+
+export type FulfillmentMethod = (typeof FulfillmentMethod)[keyof typeof FulfillmentMethod]
+
+
+export const PaymentMethod = {
+  MTN_MOMO: 'MTN_MOMO',
+  AIRTEL_MONEY: 'AIRTEL_MONEY',
+  CASH_ON_DELIVERY: 'CASH_ON_DELIVERY',
+  CASH_ON_PICKUP: 'CASH_ON_PICKUP',
+  CARD: 'CARD'
+} as const
+
+export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]
+
+
+export const PaymentStatus = {
+  PENDING: 'PENDING',
+  PAID: 'PAID',
+  FAILED: 'FAILED',
+  REFUNDED: 'REFUNDED'
+} as const
+
+export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus]
+
+
+export const OrderStatus = {
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  PREPARING: 'PREPARING',
+  READY_FOR_PICKUP: 'READY_FOR_PICKUP',
+  OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED'
+} as const
+
+export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
