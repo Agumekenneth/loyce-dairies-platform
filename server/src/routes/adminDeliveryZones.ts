@@ -132,6 +132,49 @@ function validationErrors(
   }))
 }
 
+// The audit contains only delivery-zone configuration,
+// never payment credentials or customer order information.
+type ZoneState = {
+  name: string
+  slug: string
+  feeUgx: number
+  isActive: boolean
+}
+
+function zoneSnapshot(zone: ZoneState) {
+  return {
+    name: zone.name,
+    slug: zone.slug,
+    feeUgx: zone.feeUgx,
+    isActive: zone.isActive,
+  }
+}
+
+class ZoneMutationError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ZoneMutationError'
+    this.status = status
+  }
+}
+
+function respondToMutationError(
+  error: unknown,
+  res: import('express').Response,
+): boolean {
+  if (error instanceof ZoneMutationError) {
+    res.status(error.status).json({
+      success: false,
+      message: error.message,
+    })
+    return true
+  }
+
+  return false
+}
+
 // ==========================================
 // DISABLE RESPONSE CACHING
 // ==========================================
@@ -186,6 +229,10 @@ const requireStaff: RequestHandler = async (
     })
     return
   }
+
+  // Downstream mutations use the verified session identity
+  // rather than any client-provided staff identifier.
+  res.locals.staffCustomerId = session.customer.id
 
   next()
 }
@@ -284,48 +331,54 @@ router.post(
   requireTrustedWrite,
   writeLimiter,
   async (req, res) => {
-    const parsed = createZoneSchema.safeParse(
-      req.body,
-    )
+    const parsed = createZoneSchema.safeParse(req.body)
 
     if (!parsed.success) {
       res.status(400).json({
         success: false,
         message: 'Invalid delivery-zone details.',
-        errors: validationErrors(
-          parsed.error.issues,
-        ),
+        errors: validationErrors(parsed.error.issues),
       })
       return
     }
 
+    const staffId = res.locals.staffCustomerId as string
+
     try {
-      const zone = await prisma.deliveryZone.create({
-        data: {
-          name: parsed.data.name,
-          slug: parsed.data.slug,
-          feeUgx: parsed.data.feeUgx,
+      // Zone and audit record must commit or roll back together.
+      const zone = await prisma.$transaction(async (tx) => {
+        const created = await tx.deliveryZone.create({
+          data: {
+            name: parsed.data.name,
+            slug: parsed.data.slug,
+            feeUgx: parsed.data.feeUgx,
+            isActive: false,
+          },
+          select: zoneSelect,
+        })
 
-          // Never activate a newly created zone
-          // automatically.
-          isActive: false,
-        },
+        await tx.deliveryZoneAuditEvent.create({
+          data: {
+            zoneId: created.id,
+            changedById: staffId,
+            action: 'CREATED',
+            newValues: zoneSnapshot(created),
+          },
+        })
 
-        select: zoneSelect,
+        return created
       })
 
       res.status(201).json({
         success: true,
-        message:
-          'Delivery zone created. It remains inactive.',
+        message: 'Delivery zone created. It remains inactive.',
         data: zone,
       })
     } catch (error: unknown) {
       if (isUniqueConstraintError(error)) {
         res.status(409).json({
           success: false,
-          message:
-            'A delivery zone with this name or slug already exists.',
+          message: 'A delivery zone with this name or slug already exists.',
         })
         return
       }
@@ -344,9 +397,7 @@ router.patch(
   requireTrustedWrite,
   writeLimiter,
   async (req, res) => {
-    const zoneId = parseZoneId(
-      req.params.zoneId,
-    )
+    const zoneId = parseZoneId(req.params.zoneId)
 
     if (zoneId === null) {
       res.status(400).json({
@@ -356,62 +407,100 @@ router.patch(
       return
     }
 
-    const parsed = updateZoneSchema.safeParse(
-      req.body,
-    )
+    const parsed = updateZoneSchema.safeParse(req.body)
 
     if (!parsed.success) {
       res.status(400).json({
         success: false,
         message: 'Invalid delivery-zone update.',
-        errors: validationErrors(
-          parsed.error.issues,
-        ),
+        errors: validationErrors(parsed.error.issues),
       })
       return
     }
 
-    const existing = await prisma.deliveryZone.findUnique({
-      where: {
-        id: zoneId,
-      },
-
-      select: {
-        id: true,
-      },
-    })
-
-    if (!existing) {
-      res.status(404).json({
-        success: false,
-        message: 'Delivery zone not found.',
-      })
-      return
-    }
+    const staffId = res.locals.staffCustomerId as string
 
     try {
-      const zone = await prisma.deliveryZone.update({
-        where: {
-          id: zoneId,
-        },
+      const result = await prisma.$transaction(async (tx) => {
+        const before = await tx.deliveryZone.findUnique({
+          where: { id: zoneId },
+          select: zoneSelect,
+        })
 
-        data: parsed.data,
+        if (!before) {
+          throw new ZoneMutationError(404, 'Delivery zone not found.')
+        }
 
-        select: zoneSelect,
+        if (before.isActive) {
+          throw new ZoneMutationError(
+            409,
+            'Deactivate this delivery zone before editing its name, slug or fee.',
+          )
+        }
+
+        const hasChanges = (
+          (parsed.data.name !== undefined && parsed.data.name !== before.name) ||
+          (parsed.data.slug !== undefined && parsed.data.slug !== before.slug) ||
+          (parsed.data.feeUgx !== undefined && parsed.data.feeUgx !== before.feeUgx)
+        )
+
+        if (!hasChanges) {
+          return { zone: before, changed: false }
+        }
+
+        // Conditional database update enforces inactivity even
+        // when another request acts concurrently. A frontend-only
+        // disabled button would not provide this protection.
+        const applied = await tx.deliveryZone.updateMany({
+          where: {
+            id: zoneId,
+            isActive: false,
+            name: before.name,
+            slug: before.slug,
+            feeUgx: before.feeUgx,
+          },
+          data: parsed.data,
+        })
+
+        if (applied.count !== 1) {
+          throw new ZoneMutationError(
+            409,
+            'This zone changed during the request. Refresh and try again.',
+          )
+        }
+
+        const zone = await tx.deliveryZone.findUniqueOrThrow({
+          where: { id: zoneId },
+          select: zoneSelect,
+        })
+
+        await tx.deliveryZoneAuditEvent.create({
+          data: {
+            zoneId,
+            changedById: staffId,
+            action: 'UPDATED',
+            previousValues: zoneSnapshot(before),
+            newValues: zoneSnapshot(zone),
+          },
+        })
+
+        return { zone, changed: true }
       })
 
       res.status(200).json({
         success: true,
-        message:
-          'Delivery-zone details updated successfully.',
-        data: zone,
+        message: result.changed
+          ? 'Delivery-zone details updated successfully.'
+          : 'No delivery-zone changes were needed.',
+        data: result.zone,
       })
     } catch (error: unknown) {
+      if (respondToMutationError(error, res)) return
+
       if (isUniqueConstraintError(error)) {
         res.status(409).json({
           success: false,
-          message:
-            'Another delivery zone already uses this name or slug.',
+          message: 'Another delivery zone already uses this name or slug.',
         })
         return
       }
@@ -422,8 +511,7 @@ router.patch(
 )
 
 // ==========================================
-// PATCH /api/admin/delivery-zones
-//       /:zoneId/activation
+// PATCH /api/admin/delivery-zones/:zoneId/activation
 // ==========================================
 
 router.patch(
@@ -431,9 +519,7 @@ router.patch(
   requireTrustedWrite,
   writeLimiter,
   async (req, res) => {
-    const zoneId = parseZoneId(
-      req.params.zoneId,
-    )
+    const zoneId = parseZoneId(req.params.zoneId)
 
     if (zoneId === null) {
       res.status(400).json({
@@ -443,105 +529,157 @@ router.patch(
       return
     }
 
-    const parsed = activationSchema.safeParse(
-      req.body,
-    )
+    const parsed = activationSchema.safeParse(req.body)
 
     if (!parsed.success) {
       res.status(400).json({
         success: false,
         message:
           'Invalid activation request. Activating a zone requires explicit approval confirmation.',
-        errors: validationErrors(
-          parsed.error.issues,
-        ),
+        errors: validationErrors(parsed.error.issues),
       })
       return
     }
 
-    const existing = await prisma.deliveryZone.findUnique({
-      where: {
-        id: zoneId,
-      },
-
-      select: {
-        id: true,
-        feeUgx: true,
-        isActive: true,
-      },
-    })
-
-    if (!existing) {
-      res.status(404).json({
-        success: false,
-        message: 'Delivery zone not found.',
-      })
-      return
-    }
-
+    const staffId = res.locals.staffCustomerId as string
     const nextActive = parsed.data.isActive
 
-    if (existing.isActive === nextActive) {
-      res.status(409).json({
-        success: false,
+    try {
+      const zone = await prisma.$transaction(async (tx) => {
+        const before = await tx.deliveryZone.findUnique({
+          where: { id: zoneId },
+          select: zoneSelect,
+        })
+
+        if (!before) {
+          throw new ZoneMutationError(404, 'Delivery zone not found.')
+        }
+
+        if (before.isActive === nextActive) {
+          throw new ZoneMutationError(
+            409,
+            nextActive
+              ? 'This delivery zone is already active.'
+              : 'This delivery zone is already inactive.',
+          )
+        }
+
+        if (
+          !Number.isSafeInteger(before.feeUgx) ||
+          before.feeUgx < 0 ||
+          before.feeUgx > MAX_DATABASE_INTEGER
+        ) {
+          throw new ZoneMutationError(
+            422,
+            'This delivery zone does not have a valid fee.',
+          )
+        }
+
+        // Freeze the precise configuration we validated. If any
+        // fee/name/slug/state changed concurrently, abort rather
+        // than activating a different configuration.
+        const applied = await tx.deliveryZone.updateMany({
+          where: {
+            id: zoneId,
+            isActive: before.isActive,
+            name: before.name,
+            slug: before.slug,
+            feeUgx: before.feeUgx,
+          },
+          data: { isActive: nextActive },
+        })
+
+        if (applied.count !== 1) {
+          throw new ZoneMutationError(
+            409,
+            'This zone changed during the request. Refresh and try again.',
+          )
+        }
+
+        const updated = await tx.deliveryZone.findUniqueOrThrow({
+          where: { id: zoneId },
+          select: zoneSelect,
+        })
+
+        await tx.deliveryZoneAuditEvent.create({
+          data: {
+            zoneId,
+            changedById: staffId,
+            action: nextActive ? 'ACTIVATED' : 'DEACTIVATED',
+            previousValues: zoneSnapshot(before),
+            newValues: zoneSnapshot(updated),
+          },
+        })
+
+        return updated
+      })
+
+      res.status(200).json({
+        success: true,
         message: nextActive
-          ? 'This delivery zone is already active.'
-          : 'This delivery zone is already inactive.',
+          ? 'Delivery zone activated successfully.'
+          : 'Delivery zone deactivated successfully.',
+        data: zone,
       })
-      return
+    } catch (error: unknown) {
+      if (respondToMutationError(error, res)) return
+      throw error
     }
-
-    if (
-      !Number.isInteger(existing.feeUgx) ||
-      existing.feeUgx < 0
-    ) {
-      res.status(422).json({
-        success: false,
-        message:
-          'This delivery zone does not have a valid fee.',
-      })
-      return
-    }
-
-    // Apply the change only if the active state
-    // still matches what we previously read.
-    const result =
-      await prisma.deliveryZone.updateMany({
-        where: {
-          id: zoneId,
-          isActive: existing.isActive,
-        },
-
-        data: {
-          isActive: nextActive,
-        },
-      })
-
-    if (result.count !== 1) {
-      res.status(409).json({
-        success: false,
-        message:
-          'The delivery zone changed during this request. Refresh and try again.',
-      })
-      return
-    }
-
-    const zone = await prisma.deliveryZone.findUniqueOrThrow({
-      where: {
-        id: zoneId,
-      },
-
-      select: zoneSelect,
-    })
-
-    res.status(200).json({
-      success: true,
-      message: nextActive
-        ? 'Delivery zone activated successfully.'
-        : 'Delivery zone deactivated successfully.',
-      data: zone,
-    })
   },
 )
+
+// ==========================================
+// GET /api/admin/delivery-zones/:zoneId/audit
+// ==========================================
+
+router.get('/:zoneId/audit', async (req, res) => {
+  const zoneId = parseZoneId(req.params.zoneId)
+
+  if (zoneId === null) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid delivery-zone ID.',
+    })
+    return
+  }
+
+  const zone = await prisma.deliveryZone.findUnique({
+    where: { id: zoneId },
+    select: { id: true, name: true },
+  })
+
+  if (!zone) {
+    res.status(404).json({
+      success: false,
+      message: 'Delivery zone not found.',
+    })
+    return
+  }
+
+  const events = await prisma.deliveryZoneAuditEvent.findMany({
+    where: { zoneId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 100,
+    select: {
+      id: true,
+      action: true,
+      previousValues: true,
+      newValues: true,
+      createdAt: true,
+      changedBy: {
+        select: {
+          id: true,
+          fullName: true,
+        },
+      },
+    },
+  })
+
+  res.status(200).json({
+    success: true,
+    count: events.length,
+    data: events,
+  })
+})
 
 export default router

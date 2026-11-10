@@ -86,6 +86,9 @@ model Customer {
   // Staff audit history
   statusChangesMade OrderStatusEvent[] @relation("StaffOrderStatusChanges")
 
+  // Staff delivery-zone audit history
+  deliveryZoneChanges DeliveryZoneAuditEvent[] @relation("StaffDeliveryZoneChanges")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -197,6 +200,9 @@ model DeliveryZone {
 
   orders Order[]
 
+  // Recorded creation, configuration and activation changes
+  auditEvents DeliveryZoneAuditEvent[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -307,5 +313,43 @@ model OrderStatusEvent {
   createdAt DateTime @default(now())
 
   @@index([orderId, createdAt])
+  @@index([changedById, createdAt])
+}
+
+// ==========================================
+// DELIVERY-ZONE AUDIT ACTIONS
+// ==========================================
+
+enum DeliveryZoneAuditAction {
+  CREATED
+  UPDATED
+  ACTIVATED
+  DEACTIVATED
+}
+
+// ==========================================
+// DELIVERY-ZONE AUDIT HISTORY
+// ==========================================
+
+model DeliveryZoneAuditEvent {
+  id String @id @default(cuid())
+
+  // Affected delivery zone
+  zoneId Int
+  zone   DeliveryZone @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+
+  // Authenticated staff actor
+  changedById String
+  changedBy   Customer @relation("StaffDeliveryZoneChanges", fields: [changedById], references: [id], onDelete: Restrict)
+
+  action DeliveryZoneAuditAction
+
+  // Server-written snapshots; no browser-supplied values
+  previousValues Json?
+  newValues      Json
+
+  createdAt DateTime @default(now())
+
+  @@index([zoneId, createdAt])
   @@index([changedById, createdAt])
 }
