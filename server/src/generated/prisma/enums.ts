@@ -75,3 +75,11 @@ export const DeliveryZoneAuditAction = {
 } as const
 
 export type DeliveryZoneAuditAction = (typeof DeliveryZoneAuditAction)[keyof typeof DeliveryZoneAuditAction]
+
+
+export const InventoryAction = {
+  STAFF_SET: 'STAFF_SET',
+  ORDER_PLACED: 'ORDER_PLACED'
+} as const
+
+export type InventoryAction = (typeof InventoryAction)[keyof typeof InventoryAction]

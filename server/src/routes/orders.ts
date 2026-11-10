@@ -8,13 +8,19 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
 
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// MILESTONE 4.7.1
+// SECURE CHECKOUT AND INVENTORY MANAGEMENT
+// ==========================================
+
 const router = Router()
 
-// PostgreSQL Int columns use signed 32-bit integers.
+// PostgreSQL signed 32-bit integer limit.
 const MAX_DATABASE_INTEGER = 2_147_483_647
 
 // ==========================================
-// CHECKOUT VALIDATION
+// CHECKOUT INPUT VALIDATION
 // ==========================================
 
 const itemSchema = z.object({
@@ -45,17 +51,27 @@ const commonCheckoutFields = {
     .max(20),
 }
 
+// ==========================================
+// PICKUP CHECKOUT
+// ==========================================
+
 const pickupCheckoutSchema = z.object({
   ...commonCheckoutFields,
 
   fulfillmentMethod: z.literal('PICKUP'),
+
   paymentMethod: z.literal('CASH_ON_PICKUP'),
 }).strict()
+
+// ==========================================
+// DELIVERY CHECKOUT
+// ==========================================
 
 const deliveryCheckoutSchema = z.object({
   ...commonCheckoutFields,
 
   fulfillmentMethod: z.literal('DELIVERY'),
+
   paymentMethod: z.literal('CASH_ON_DELIVERY'),
 
   deliveryZoneId: z.number()
@@ -74,6 +90,10 @@ const deliveryCheckoutSchema = z.object({
     .optional(),
 }).strict()
 
+// ==========================================
+// COMBINED CHECKOUT VALIDATION
+// ==========================================
+
 const checkoutSchema = z.discriminatedUnion(
   'fulfillmentMethod',
   [
@@ -83,8 +103,12 @@ const checkoutSchema = z.discriminatedUnion(
 )
 
 // ==========================================
-// RESPONSE FIELD SELECTION
+// CUSTOMER ORDER RESPONSE
 // ==========================================
+
+// Preserve the API response structure
+// used by the existing React checkout and
+// customer order-history components.
 
 const orderSelect = {
   id: true,
@@ -124,21 +148,40 @@ const orderSelect = {
 } as const
 
 // ==========================================
-// CUSTOM CHECKOUT ERROR
+// INVENTORY MOVEMENT TYPE
+// ==========================================
+
+type InventoryMovement = {
+  productId: number
+  productName: string
+  productUnit: string
+
+  quantity: number
+
+  quantityBefore: number
+  quantityAfter: number
+}
+
+// ==========================================
+// CHECKOUT ERROR
 // ==========================================
 
 class CheckoutError extends Error {
+  readonly statusCode: number
+
   constructor(
-    public readonly statusCode: number,
+    statusCode: number,
     message: string,
   ) {
     super(message)
+
     this.name = 'CheckoutError'
+    this.statusCode = statusCode
   }
 }
 
 // ==========================================
-// BASIC CSRF REQUEST PROTECTION
+// TRUSTED CHECKOUT REQUEST PROTECTION
 // ==========================================
 
 const requireTrustedCheckoutRequest: RequestHandler = (
@@ -153,19 +196,25 @@ const requireTrustedCheckoutRequest: RequestHandler = (
 
   const origin = req.get('Origin')
 
+  // Preserve the existing origin-checking
+  // behavior of the checkout API.
+
   if (origin && origin !== allowedOrigin) {
     res.status(403).json({
       success: false,
       message: 'Request origin not allowed.',
     })
+
     return
   }
 
   if (req.get('X-Loyce-Request') !== '1') {
     res.status(403).json({
       success: false,
-      message: 'Required request header is missing.',
+      message:
+        'Required request header is missing.',
     })
+
     return
   }
 
@@ -178,9 +227,13 @@ const requireTrustedCheckoutRequest: RequestHandler = (
 
 const checkoutLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   limit: 10,
+
   standardHeaders: 'draft-8',
+
   legacyHeaders: false,
+
   message: {
     success: false,
     message:
@@ -189,7 +242,7 @@ const checkoutLimiter = rateLimit({
 })
 
 // ==========================================
-// GENERATE UNIQUE-STYLE ORDER NUMBER
+// ORDER NUMBER GENERATION
 // ==========================================
 
 function generateOrderNumber(): string {
@@ -206,7 +259,7 @@ function generateOrderNumber(): string {
 }
 
 // ==========================================
-// CHECK POSTGRESQL INTEGER LIMIT
+// VALIDATE UGX AMOUNTS
 // ==========================================
 
 function validateAmount(amount: number): void {
@@ -224,55 +277,74 @@ function validateAmount(amount: number): void {
 
 // ==========================================
 // GET /api/delivery-zones
+//
+// PUBLIC ACTIVE DELIVERY ZONES
 // ==========================================
 
-// Publicly return configured, active zones only.
-router.get('/delivery-zones', async (_req, res) => {
-  const zones = await prisma.deliveryZone.findMany({
-    where: {
-      isActive: true,
-    },
+router.get(
+  '/delivery-zones',
+  async (_req, res) => {
+    res.set('Cache-Control', 'no-store')
 
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      feeUgx: true,
-    },
+    const zones =
+      await prisma.deliveryZone.findMany({
+        where: {
+          isActive: true,
+        },
 
-    orderBy: {
-      name: 'asc',
-    },
-  })
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          feeUgx: true,
+        },
 
-  res.status(200).json({
-    success: true,
-    count: zones.length,
-    data: zones,
-  })
-})
+        orderBy: {
+          name: 'asc',
+        },
+      })
+
+    res.status(200).json({
+      success: true,
+      count: zones.length,
+      data: zones,
+    })
+  },
+)
 
 // ==========================================
 // POST /api/orders/checkout
+//
+// CUSTOMER CHECKOUT WITH INVENTORY DEDUCTION
 // ==========================================
 
 router.post(
   '/orders/checkout',
   requireTrustedCheckoutRequest,
   checkoutLimiter,
+
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
 
-    // Authenticate using the existing session cookie.
+    // ======================================
+    // 1. VERIFY CUSTOMER SESSION
+    // ======================================
+
     const session = await getCurrentSession(req)
 
     if (!session) {
       res.status(401).json({
         success: false,
-        message: 'Please sign in before checking out.',
+        message:
+          'Please sign in before checking out.',
       })
+
       return
     }
+
+    // ======================================
+    // 2. VERIFY CONTENT TYPE
+    // ======================================
 
     if (!req.is('application/json')) {
       res.status(415).json({
@@ -280,69 +352,100 @@ router.post(
         message:
           'Content-Type must be application/json.',
       })
+
       return
     }
 
-    const parsed = checkoutSchema.safeParse(req.body)
+    // ======================================
+    // 3. VALIDATE CHECKOUT BODY
+    // ======================================
+
+    const parsed = checkoutSchema.safeParse(
+      req.body,
+    )
 
     if (!parsed.success) {
       res.status(400).json({
         success: false,
+
         message:
           'Invalid checkout details or unsupported payment method.',
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-        })),
+
+        errors: parsed.error.issues.map(
+          (issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          }),
+        ),
       })
+
       return
     }
 
     const checkout = parsed.data
 
-    // Duplicate product entries are not accepted.
+    // ======================================
+    // 4. CHECK DUPLICATE PRODUCTS
+    // ======================================
+
     const productIds = checkout.items.map(
       (item) => item.productId,
     )
 
+    const uniqueProductIds = new Set(
+      productIds,
+    )
+
     if (
-      new Set(productIds).size !== productIds.length
+      uniqueProductIds.size !==
+      productIds.length
     ) {
       res.status(400).json({
         success: false,
+
         message:
           'Each product must appear only once in the order.',
       })
+
       return
     }
 
     try {
-      // Product prices, delivery fees and order
-      // creation are handled together.
+      // ====================================
+      // 5. START ATOMIC CHECKOUT TRANSACTION
+      // ====================================
+
+      // All stock deductions, order creation
+      // and inventory audit records must
+      // either succeed together or roll back.
+
       const order = await prisma.$transaction(
         async (tx) => {
           // ==================================
-          // LOAD ACTIVE PRODUCTS
+          // 6. LOAD ACTIVE PRODUCTS
           // ==================================
 
-          const products = await tx.product.findMany({
-            where: {
-              id: {
-                in: productIds,
-              },
-              isActive: true,
-            },
+          const products =
+            await tx.product.findMany({
+              where: {
+                id: {
+                  in: productIds,
+                },
 
-            select: {
-              id: true,
-              name: true,
-              unit: true,
-              priceUgx: true,
-            },
-          })
+                isActive: true,
+              },
+
+              select: {
+                id: true,
+                name: true,
+                unit: true,
+                priceUgx: true,
+              },
+            })
 
           if (
-            products.length !== productIds.length
+            products.length !==
+            productIds.length
           ) {
             throw new CheckoutError(
               422,
@@ -358,8 +461,14 @@ router.post(
           )
 
           // ==================================
-          // CALCULATE ITEM TOTALS
+          // 7. CALCULATE PRODUCT PRICES
           // ==================================
+
+          // Do not trust prices or totals
+          // submitted from the browser.
+          //
+          // Prices are retrieved directly
+          // from PostgreSQL.
 
           const orderItems = checkout.items.map(
             (item) => {
@@ -375,7 +484,9 @@ router.post(
               }
 
               if (
-                !Number.isInteger(product.priceUgx) ||
+                !Number.isInteger(
+                  product.priceUgx,
+                ) ||
                 product.priceUgx <= 0
               ) {
                 throw new CheckoutError(
@@ -385,7 +496,8 @@ router.post(
               }
 
               const lineTotalUgx =
-                product.priceUgx * item.quantity
+                product.priceUgx *
+                item.quantity
 
               validateAmount(lineTotalUgx)
 
@@ -398,24 +510,32 @@ router.post(
 
                 productName: product.name,
                 productUnit: product.unit,
-                unitPriceUgx: product.priceUgx,
+
+                unitPriceUgx:
+                  product.priceUgx,
 
                 quantity: item.quantity,
+
                 lineTotalUgx,
               }
             },
           )
 
-          const subtotalUgx = orderItems.reduce(
-            (sum, item) =>
-              sum + item.lineTotalUgx,
-            0,
-          )
+          // ==================================
+          // 8. CALCULATE SUBTOTAL
+          // ==================================
+
+          const subtotalUgx =
+            orderItems.reduce(
+              (sum, item) =>
+                sum + item.lineTotalUgx,
+              0,
+            )
 
           validateAmount(subtotalUgx)
 
           // ==================================
-          // VALIDATE DELIVERY ZONE
+          // 9. VALIDATE DELIVERY CONFIGURATION
           // ==================================
 
           let deliveryZone: {
@@ -428,19 +548,35 @@ router.post(
             checkout.fulfillmentMethod ===
             'DELIVERY'
           ) {
-            deliveryZone =
-              await tx.deliveryZone.findFirst({
-                where: {
-                  id: checkout.deliveryZoneId,
-                  isActive: true,
-                },
+            // Read the approved delivery zone
+            // under a PostgreSQL row-share lock.
+            //
+            // This prevents concurrent updates
+            // or deactivation from changing the
+            // validated delivery fee before
+            // checkout commits.
 
-                select: {
-                  id: true,
-                  name: true,
-                  feeUgx: true,
-                },
-              })
+            const eligibleZones =
+              await tx.$queryRaw<
+                Array<{
+                  id: number
+                  name: string
+                  feeUgx: number
+                }>
+              >`
+                SELECT
+                  "id",
+                  "name",
+                  "feeUgx"
+                FROM "DeliveryZone"
+                WHERE
+                  "id" = ${checkout.deliveryZoneId}
+                  AND "isActive" = true
+                FOR SHARE
+              `
+
+            deliveryZone =
+              eligibleZones[0] ?? null
 
             if (!deliveryZone) {
               throw new CheckoutError(
@@ -449,98 +585,306 @@ router.post(
               )
             }
 
-            validateAmount(deliveryZone.feeUgx)
+            validateAmount(
+              deliveryZone.feeUgx,
+            )
           }
+
+          // ==================================
+          // 10. CALCULATE TOTAL
+          // ==================================
 
           const deliveryFeeUgx =
             deliveryZone?.feeUgx ?? 0
 
           const totalUgx =
-            subtotalUgx + deliveryFeeUgx
+            subtotalUgx +
+            deliveryFeeUgx
 
           validateAmount(totalUgx)
 
           // ==================================
-          // CREATE ORDER AND ORDER ITEMS
+          // 11. ATOMIC INVENTORY DEDUCTION
           // ==================================
 
-          return tx.order.create({
-            data: {
-              orderNumber: generateOrderNumber(),
+          // Always process products in the
+          // same ID order to reduce deadlock
+          // risk during concurrent checkouts.
 
-              customer: {
-                connect: {
-                  id: session.customer.id,
+          const sortedItems = [
+            ...checkout.items,
+          ].sort(
+            (a, b) =>
+              a.productId - b.productId,
+          )
+
+          const inventoryMovements:
+            InventoryMovement[] = []
+
+          for (const item of sortedItems) {
+            // Update only if enough stock
+            // still exists in PostgreSQL.
+            //
+            // This condition and decrement
+            // execute atomically.
+
+            const stockUpdate =
+              await tx.product.updateMany({
+                where: {
+                  id: item.productId,
+
+                  isActive: true,
+
+                  stockQuantity: {
+                    gte: item.quantity,
+                  },
+                },
+
+                data: {
+                  stockQuantity: {
+                    decrement:
+                      item.quantity,
+                  },
+                },
+              })
+
+            // =================================
+            // REJECT INSUFFICIENT STOCK
+            // =================================
+
+            if (
+              stockUpdate.count !== 1
+            ) {
+              throw new CheckoutError(
+                409,
+                'Insufficient stock for one or more products. Please review your cart.',
+              )
+            }
+
+            // =================================
+            // READ UPDATED STOCK BALANCE
+            // =================================
+
+            const stockBalance =
+              await tx.product.findUniqueOrThrow({
+                where: {
+                  id: item.productId,
+                },
+
+                select: {
+                  stockQuantity: true,
+                },
+              })
+
+            const product = productMap.get(
+              item.productId,
+            )
+
+            if (!product) {
+              throw new CheckoutError(
+                422,
+                'A selected product is unavailable.',
+              )
+            }
+
+            // =================================
+            // PREPARE INVENTORY AUDIT EVENT
+            // =================================
+
+            inventoryMovements.push({
+              productId: item.productId,
+
+              productName:
+                product.name,
+
+              productUnit:
+                product.unit,
+
+              quantity:
+                item.quantity,
+
+              quantityBefore:
+                stockBalance.stockQuantity +
+                item.quantity,
+
+              quantityAfter:
+                stockBalance.stockQuantity,
+            })
+          }
+
+          // ==================================
+          // 12. CREATE CUSTOMER ORDER
+          // ==================================
+
+          // Stock has been conditionally
+          // deducted, but the transaction
+          // has not yet committed.
+          //
+          // If order creation fails,
+          // the deductions will roll back.
+
+          const savedOrder =
+            await tx.order.create({
+              data: {
+                orderNumber:
+                  generateOrderNumber(),
+
+                customer: {
+                  connect: {
+                    id:
+                      session.customer.id,
+                  },
+                },
+
+                fulfillmentMethod:
+                  checkout.fulfillmentMethod,
+
+                paymentMethod:
+                  checkout.paymentMethod,
+
+                status: 'PENDING',
+
+                paymentStatus: 'PENDING',
+
+                recipientName:
+                  checkout.recipientName,
+
+                contactPhone:
+                  checkout.contactPhone,
+
+                // Delivery zone
+                deliveryZone:
+                  deliveryZone
+                    ? {
+                        connect: {
+                          id:
+                            deliveryZone.id,
+                        },
+                      }
+                    : undefined,
+
+                // Preserve zone name
+                // at the time of checkout.
+                deliveryZoneName:
+                  deliveryZone?.name ??
+                  null,
+
+                deliveryAddress:
+                  checkout.fulfillmentMethod ===
+                  'DELIVERY'
+                    ? checkout.deliveryAddress
+                    : null,
+
+                deliveryInstructions:
+                  checkout.fulfillmentMethod ===
+                  'DELIVERY'
+                    ? checkout.deliveryInstructions ??
+                      null
+                    : null,
+
+                subtotalUgx,
+                deliveryFeeUgx,
+                totalUgx,
+
+                // Order item snapshots
+                items: {
+                  create: orderItems,
                 },
               },
 
-              fulfillmentMethod:
-                checkout.fulfillmentMethod,
+              select: orderSelect,
+            })
 
-              paymentMethod:
-                checkout.paymentMethod,
+          // ==================================
+          // 13. RECORD INVENTORY HISTORY
+          // ==================================
 
-              status: 'PENDING',
-              paymentStatus: 'PENDING',
+          // These records connect each stock
+          // deduction to the new customer
+          // order and preserve the stock
+          // quantities before and after.
 
-              recipientName:
-                checkout.recipientName,
+          await tx.inventoryEvent.createMany({
+            data: inventoryMovements.map(
+              (movement) => ({
+                productId:
+                  movement.productId,
 
-              contactPhone:
-                checkout.contactPhone,
+                productName:
+                  movement.productName,
 
-              deliveryZone: deliveryZone
-                ? {
-                    connect: {
-                      id: deliveryZone.id,
-                    },
-                  }
-                : undefined,
+                productUnit:
+                  movement.productUnit,
 
-              deliveryZoneName:
-                deliveryZone?.name ?? null,
+                orderId:
+                  savedOrder.id,
 
-              deliveryAddress:
-                checkout.fulfillmentMethod ===
-                'DELIVERY'
-                  ? checkout.deliveryAddress
-                  : null,
+                action:
+                  'ORDER_PLACED' as const,
 
-              deliveryInstructions:
-                checkout.fulfillmentMethod ===
-                'DELIVERY'
-                  ? checkout.deliveryInstructions ??
-                    null
-                  : null,
+                quantityChange:
+                  -movement.quantity,
 
-              subtotalUgx,
-              deliveryFeeUgx,
-              totalUgx,
+                quantityBefore:
+                  movement.quantityBefore,
 
-              items: {
-                create: orderItems,
-              },
-            },
+                quantityAfter:
+                  movement.quantityAfter,
 
-            select: orderSelect,
+                note:
+                  'Customer checkout stock deduction',
+              }),
+            ),
           })
+
+          // ==================================
+          // 14. COMMIT TRANSACTION
+          // ==================================
+
+          // Returning successfully commits:
+          //
+          // - Stock deductions
+          // - Customer order
+          // - Order item snapshots
+          // - Inventory audit history
+
+          return savedOrder
         },
       )
 
+      // ====================================
+      // 15. CHECKOUT SUCCESS RESPONSE
+      // ====================================
+
       res.status(201).json({
         success: true,
+
         message:
           'Your order has been received and is pending confirmation.',
+
         data: order,
       })
     } catch (error: unknown) {
-      if (error instanceof CheckoutError) {
-        res.status(error.statusCode).json({
+      // ====================================
+      // 16. CHECKOUT ERROR RESPONSE
+      // ====================================
+
+      if (
+        error instanceof CheckoutError
+      ) {
+        res.status(
+          error.statusCode,
+        ).json({
           success: false,
           message: error.message,
         })
+
         return
       }
+
+      // Unexpected errors are passed
+      // to the existing Express error
+      // handler for safe logging.
 
       throw error
     }
@@ -549,94 +893,150 @@ router.post(
 
 // ==========================================
 // GET /api/orders
+//
+// CUSTOMER ORDER HISTORY
 // ==========================================
 
-// Return only the current customer's orders.
-router.get('/orders', async (req, res) => {
-  res.set('Cache-Control', 'no-store')
+router.get(
+  '/orders',
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
 
-  const session = await getCurrentSession(req)
+    // ======================================
+    // AUTHENTICATE CUSTOMER
+    // ======================================
 
-  if (!session) {
-    res.status(401).json({
-      success: false,
-      message: 'Authentication required.',
+    const session =
+      await getCurrentSession(req)
+
+    if (!session) {
+      res.status(401).json({
+        success: false,
+        message:
+          'Authentication required.',
+      })
+
+      return
+    }
+
+    // ======================================
+    // RETRIEVE CUSTOMER ORDERS
+    // ======================================
+
+    const orders =
+      await prisma.order.findMany({
+        where: {
+          customerId:
+            session.customer.id,
+        },
+
+        orderBy: {
+          createdAt: 'desc',
+        },
+
+        take: 50,
+
+        select: orderSelect,
+      })
+
+    // ======================================
+    // SUCCESS RESPONSE
+    // ======================================
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders,
     })
-    return
-  }
-
-  const orders = await prisma.order.findMany({
-    where: {
-      customerId: session.customer.id,
-    },
-
-    orderBy: {
-      createdAt: 'desc',
-    },
-
-    take: 50,
-    select: orderSelect,
-  })
-
-  res.status(200).json({
-    success: true,
-    count: orders.length,
-    data: orders,
-  })
-})
+  },
+)
 
 // ==========================================
 // GET /api/orders/:orderId
+//
+// CUSTOMER ORDER DETAILS
 // ==========================================
 
-router.get('/orders/:orderId', async (req, res) => {
-  res.set('Cache-Control', 'no-store')
+router.get(
+  '/orders/:orderId',
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
 
-  const session = await getCurrentSession(req)
+    // ======================================
+    // AUTHENTICATE CUSTOMER
+    // ======================================
 
-  if (!session) {
-    res.status(401).json({
-      success: false,
-      message: 'Authentication required.',
+    const session =
+      await getCurrentSession(req)
+
+    if (!session) {
+      res.status(401).json({
+        success: false,
+        message:
+          'Authentication required.',
+      })
+
+      return
+    }
+
+    // ======================================
+    // VALIDATE ORDER ID
+    // ======================================
+
+    const orderId =
+      req.params.orderId
+
+    if (
+      typeof orderId !== 'string' ||
+      !orderId ||
+      orderId.length > 100
+    ) {
+      res.status(404).json({
+        success: false,
+        message: 'Order not found.',
+      })
+
+      return
+    }
+
+    // ======================================
+    // RETRIEVE OWN ORDER ONLY
+    // ======================================
+
+    const order =
+      await prisma.order.findFirst({
+        where: {
+          id: orderId,
+
+          customerId:
+            session.customer.id,
+        },
+
+        select: orderSelect,
+      })
+
+    if (!order) {
+      res.status(404).json({
+        success: false,
+        message: 'Order not found.',
+      })
+
+      return
+    }
+
+    // ======================================
+    // SUCCESS RESPONSE
+    // ======================================
+
+    res.status(200).json({
+      success: true,
+      data: order,
     })
-    return
-  }
+  },
+)
 
-  const orderId = req.params.orderId
-
-  if (
-    typeof orderId !== 'string' ||
-    !orderId ||
-    orderId.length > 100
-  ) {
-    res.status(404).json({
-      success: false,
-      message: 'Order not found.',
-    })
-    return
-  }
-
-  const order = await prisma.order.findFirst({
-    where: {
-      id: orderId,
-      customerId: session.customer.id,
-    },
-
-    select: orderSelect,
-  })
-
-  if (!order) {
-    res.status(404).json({
-      success: false,
-      message: 'Order not found.',
-    })
-    return
-  }
-
-  res.status(200).json({
-    success: true,
-    data: order,
-  })
-})
+// ==========================================
+// EXPORT CUSTOMER ORDER ROUTER
+// ==========================================
 
 export default router

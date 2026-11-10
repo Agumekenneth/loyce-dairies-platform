@@ -406,7 +406,8 @@ export const ModelName = {
   Order: 'Order',
   OrderItem: 'OrderItem',
   OrderStatusEvent: 'OrderStatusEvent',
-  DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent'
+  DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent',
+  InventoryEvent: 'InventoryEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -422,7 +423,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1166,6 +1167,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    InventoryEvent: {
+      payload: Prisma.$InventoryEventPayload<ExtArgs>
+      fields: Prisma.InventoryEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.InventoryEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.InventoryEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>
+        }
+        findFirst: {
+          args: Prisma.InventoryEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.InventoryEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>
+        }
+        findMany: {
+          args: Prisma.InventoryEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>[]
+        }
+        create: {
+          args: Prisma.InventoryEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>
+        }
+        createMany: {
+          args: Prisma.InventoryEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.InventoryEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>[]
+        }
+        delete: {
+          args: Prisma.InventoryEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>
+        }
+        update: {
+          args: Prisma.InventoryEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.InventoryEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.InventoryEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.InventoryEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.InventoryEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InventoryEventPayload>
+        }
+        aggregate: {
+          args: Prisma.InventoryEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateInventoryEvent>
+        }
+        groupBy: {
+          args: Prisma.InventoryEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InventoryEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.InventoryEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InventoryEventCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1225,6 +1300,7 @@ export const ProductScalarFieldEnum = {
   imageUrl: 'imageUrl',
   badge: 'badge',
   isActive: 'isActive',
+  stockQuantity: 'stockQuantity',
   categoryId: 'categoryId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -1349,6 +1425,24 @@ export const DeliveryZoneAuditEventScalarFieldEnum = {
 } as const
 
 export type DeliveryZoneAuditEventScalarFieldEnum = (typeof DeliveryZoneAuditEventScalarFieldEnum)[keyof typeof DeliveryZoneAuditEventScalarFieldEnum]
+
+
+export const InventoryEventScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  productName: 'productName',
+  productUnit: 'productUnit',
+  orderId: 'orderId',
+  changedById: 'changedById',
+  action: 'action',
+  quantityChange: 'quantityChange',
+  quantityBefore: 'quantityBefore',
+  quantityAfter: 'quantityAfter',
+  note: 'note',
+  createdAt: 'createdAt'
+} as const
+
+export type InventoryEventScalarFieldEnum = (typeof InventoryEventScalarFieldEnum)[keyof typeof InventoryEventScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1567,6 +1661,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
 
 
 /**
+ * Reference to a field of type 'InventoryAction'
+ */
+export type EnumInventoryActionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'InventoryAction'>
+    
+
+
+/**
+ * Reference to a field of type 'InventoryAction[]'
+ */
+export type ListEnumInventoryActionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'InventoryAction[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -1740,6 +1848,7 @@ export type GlobalOmitConfig = {
   orderItem?: Prisma.OrderItemOmit
   orderStatusEvent?: Prisma.OrderStatusEventOmit
   deliveryZoneAuditEvent?: Prisma.DeliveryZoneAuditEventOmit
+  inventoryEvent?: Prisma.InventoryEventOmit
 }
 
 /* Types for Logging */
