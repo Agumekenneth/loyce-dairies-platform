@@ -1,3 +1,4 @@
+
 export type Product = {
   id: number
   name: string
@@ -6,4 +7,6 @@ export type Product = {
   unit: string
   image: string
   badge?: string
+  description?: string
+  highlights?: string[]
 }
