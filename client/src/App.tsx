@@ -2,6 +2,11 @@
 import { Route, Routes } from 'react-router-dom'
 
 // ==========================================
+// LOYCE DAIRIES PLATFORM
+// APPLICATION ROUTING
+// ==========================================
+
+// ==========================================
 // SHARED APPLICATION LAYOUT
 // ==========================================
 
@@ -41,6 +46,13 @@ import StaffOrdersPage from './pages/StaffOrdersPage'
 import StaffDeliveryZonesPage from './pages/StaffDeliveryZonesPage'
 
 // ==========================================
+// STAFF INVENTORY MANAGEMENT
+// MILESTONE 4.7.3
+// ==========================================
+
+import StaffInventoryPage from './pages/StaffInventoryPage'
+
+// ==========================================
 // FALLBACK PAGE
 // ==========================================
 
@@ -54,8 +66,15 @@ export default function App() {
   return (
     <Routes>
       <Route element={<MainLayout />}>
-        {/* Public storefront */}
-        <Route path="/" element={<HomePage />} />
+
+        {/* ==================================
+            PUBLIC STOREFRONT
+        ================================== */}
+
+        <Route
+          path="/"
+          element={<HomePage />}
+        />
 
         <Route
           path="/products"
@@ -67,21 +86,33 @@ export default function App() {
           element={<ProductDetailsPage />}
         />
 
-        {/* Authentication */}
-        <Route path="/login" element={<LoginPage />} />
+        {/* ==================================
+            CUSTOMER AUTHENTICATION
+        ================================== */}
+
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
 
         <Route
           path="/register"
           element={<RegisterPage />}
         />
 
-        {/* Email verification */}
+        {/* ==================================
+            EMAIL VERIFICATION
+        ================================== */}
+
         <Route
           path="/verify-email"
           element={<VerifyEmailPage />}
         />
 
-        {/* Password recovery */}
+        {/* ==================================
+            PASSWORD RECOVERY
+        ================================== */}
+
         <Route
           path="/forgot-password"
           element={<ForgotPasswordPage />}
@@ -92,38 +123,65 @@ export default function App() {
           element={<ResetPasswordPage />}
         />
 
-        {/* Authenticated pages */}
+        {/* ==================================
+            AUTHENTICATED PAGES
+        ================================== */}
+
         <Route element={<ProtectedRoute />}>
+
           {/* Customer account */}
+
           <Route
             path="/account"
             element={<AccountPage />}
           />
 
           {/* Customer checkout */}
+
           <Route
             path="/checkout"
             element={<CheckoutPage />}
           />
 
-          {/* Staff order management */}
+          {/* ==================================
+              STAFF ORDER MANAGEMENT
+          ================================== */}
+
           <Route
             path="/staff/orders"
             element={<StaffOrdersPage />}
           />
 
-          {/* Staff delivery-zone management */}
+          {/* ==================================
+              STAFF DELIVERY-ZONE MANAGEMENT
+          ================================== */}
+
           <Route
             path="/staff/delivery-zones"
             element={<StaffDeliveryZonesPage />}
           />
+
+          {/* ==================================
+              STAFF INVENTORY MANAGEMENT
+              MILESTONE 4.7.3
+          ================================== */}
+
+          <Route
+            path="/staff/inventory"
+            element={<StaffInventoryPage />}
+          />
+
         </Route>
 
-        {/* Unrecognized routes */}
+        {/* ==================================
+            UNRECOGNIZED ROUTES
+        ================================== */}
+
         <Route
           path="*"
           element={<NotFoundPage />}
         />
+
       </Route>
     </Routes>
   )

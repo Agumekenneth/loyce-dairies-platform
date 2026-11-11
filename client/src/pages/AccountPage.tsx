@@ -6,12 +6,15 @@ import {
   ArrowRight,
   CheckCircle2,
   CircleAlert,
+  ClipboardList,
   Clock3,
   LogOut,
   Mail,
   MapPin,
+  Package,
   Phone,
   ShieldCheck,
+  Truck,
   UserRound,
 } from 'lucide-react'
 
@@ -19,7 +22,9 @@ import { useAuth } from '../context/AuthContext'
 import OrderHistory from '../components/orders/OrderHistory'
 
 // ==========================================
-// CUSTOMER ACCOUNT PAGE
+// LOYCE DAIRIES PLATFORM
+// CUSTOMER ACCOUNT AND STAFF WORKSPACE
+// MILESTONE 4.7.3
 // ==========================================
 
 export default function AccountPage() {
@@ -31,14 +36,18 @@ export default function AccountPage() {
     isSubmitting,
   } = useAuth()
 
-  const [logoutError, setLogoutError] = useState<
-    string | null
-  >(null)
+  const [logoutError, setLogoutError] =
+    useState<string | null>(null)
 
   // ProtectedRoute handles authentication.
+
   if (!customer) {
     return null
   }
+
+  // ========================================
+  // ACCOUNT INFORMATION
+  // ========================================
 
   const firstName =
     customer.fullName.trim().split(/\s+/)[0] ||
@@ -47,12 +56,27 @@ export default function AccountPage() {
   const isEmailVerified =
     customer.emailVerifiedAt !== null
 
-  // ==========================================
+  // The staff workspace is shown only if
+  // the session customer includes the
+  // STAFF role.
+  //
+  // The backend independently verifies
+  // staff authorization for every
+  // administrative API request.
+
+  const isStaff =
+    'role' in customer &&
+    customer.role === 'STAFF' &&
+    isEmailVerified
+
+  // ========================================
   // SIGN OUT
-  // ==========================================
+  // ========================================
 
   const handleLogout = async () => {
-    if (isSubmitting) return
+    if (isSubmitting) {
+      return
+    }
 
     setLogoutError(null)
 
@@ -71,19 +95,26 @@ export default function AccountPage() {
     }
   }
 
+  // ========================================
+  // ACCOUNT PAGE
+  // ========================================
+
   return (
     <main className="min-h-screen bg-cream">
-      {/* ======================================
+
+      {/* ====================================
           ACCOUNT HEADER
-      ====================================== */}
+      ==================================== */}
 
       <section className="bg-sage/60">
         <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
+
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
             YOUR LOYCE ACCOUNT
           </p>
 
           <div className="mt-6 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+
             <div>
               <h1 className="font-display text-4xl leading-tight text-brand sm:text-5xl">
                 Hello,{' '}
@@ -115,11 +146,12 @@ export default function AccountPage() {
         </div>
       </section>
 
-      {/* ======================================
+      {/* ====================================
           ACCOUNT CONTENT
-      ====================================== */}
+      ==================================== */}
 
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
+
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
 
           {/* ==================================
@@ -128,9 +160,14 @@ export default function AccountPage() {
 
           <div className="min-w-0 space-y-8">
 
-            {/* PERSONAL INFORMATION */}
+            {/* ==============================
+                PERSONAL INFORMATION
+            ============================== */}
+
             <section className="rounded-[2rem] border border-brand/10 bg-white p-6 sm:p-9">
+
               <div className="flex items-center gap-4">
+
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sage text-brand">
                   <UserRound
                     size={26}
@@ -152,12 +189,14 @@ export default function AccountPage() {
               <div className="mt-9 grid gap-6 sm:grid-cols-2">
 
                 {/* Full name */}
+
                 <div className="rounded-2xl bg-cream p-5">
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand/55">
                     <UserRound
                       size={16}
                       aria-hidden="true"
                     />
+
                     Full name
                   </div>
 
@@ -167,12 +206,14 @@ export default function AccountPage() {
                 </div>
 
                 {/* Email */}
+
                 <div className="rounded-2xl bg-cream p-5">
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand/55">
                     <Mail
                       size={16}
                       aria-hidden="true"
                     />
+
                     Email address
                   </div>
 
@@ -182,12 +223,14 @@ export default function AccountPage() {
                 </div>
 
                 {/* Phone */}
+
                 <div className="rounded-2xl bg-cream p-5">
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand/55">
                     <Phone
                       size={16}
                       aria-hidden="true"
                     />
+
                     Phone number
                   </div>
 
@@ -197,16 +240,20 @@ export default function AccountPage() {
                 </div>
 
                 {/* Email verification */}
+
                 <div className="rounded-2xl bg-cream p-5">
+
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand/55">
                     <ShieldCheck
                       size={16}
                       aria-hidden="true"
                     />
+
                     Email verification
                   </div>
 
                   <div className="mt-3 flex items-center gap-2">
+
                     {isEmailVerified ? (
                       <>
                         <CheckCircle2
@@ -237,8 +284,10 @@ export default function AccountPage() {
               </div>
 
               {/* Verification prompt */}
+
               {!isEmailVerified && (
                 <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5">
+
                   <p className="text-sm font-bold text-amber-900">
                     Email verification is pending
                   </p>
@@ -271,10 +320,166 @@ export default function AccountPage() {
             </section>
 
             {/* ==================================
+                STAFF WORKSPACE
+                MILESTONE 4.7.3
+            ================================== */}
+
+            {isStaff && (
+              <section
+                aria-labelledby="staff-workspace-title"
+                className="rounded-[2rem] border border-brand/10 bg-white p-6 sm:p-9"
+              >
+                {/* Header */}
+
+                <div className="flex items-start gap-4">
+
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sage text-brand">
+                    <ShieldCheck
+                      size={27}
+                      aria-hidden="true"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.15em] text-brand-light">
+                      LOYCE DAIRIES · STAFF
+                    </p>
+
+                    <h2
+                      id="staff-workspace-title"
+                      className="mt-2 font-display text-3xl text-brand"
+                    >
+                      Staff workspace
+                    </h2>
+
+                    <p className="mt-3 text-sm leading-7 text-brand/65">
+                      Access authorized tools for
+                      managing customer orders,
+                      delivery zones, and dairy
+                      product inventory.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Staff navigation */}
+
+                <nav
+                  aria-label="Staff administration"
+                  className="mt-8 grid gap-4"
+                >
+
+                  {/* Order management */}
+
+                  <Link
+                    to="/staff/orders"
+                    className="group flex items-center gap-4 rounded-2xl border border-brand/10 bg-cream p-5 transition-colors hover:border-brand/30 hover:bg-sage/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-light">
+                      <ClipboardList
+                        size={23}
+                        aria-hidden="true"
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-brand">
+                        Order management
+                      </h3>
+
+                      <p className="mt-1 text-xs leading-5 text-brand/60">
+                        Review customer orders,
+                        update fulfillment status,
+                        and inspect order history.
+                      </p>
+                    </div>
+
+                    <ArrowRight
+                      size={19}
+                      className="shrink-0 text-brand/50 transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    />
+                  </Link>
+
+                  {/* Delivery zone management */}
+
+                  <Link
+                    to="/staff/delivery-zones"
+                    className="group flex items-center gap-4 rounded-2xl border border-brand/10 bg-cream p-5 transition-colors hover:border-brand/30 hover:bg-sage/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-light">
+                      <Truck
+                        size={23}
+                        aria-hidden="true"
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-brand">
+                        Delivery-zone management
+                      </h3>
+
+                      <p className="mt-1 text-xs leading-5 text-brand/60">
+                        Manage delivery coverage,
+                        configured fees, zone
+                        availability, and audit history.
+                      </p>
+                    </div>
+
+                    <ArrowRight
+                      size={19}
+                      className="shrink-0 text-brand/50 transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    />
+                  </Link>
+
+                  {/* Inventory management */}
+
+                  <Link
+                    to="/staff/inventory"
+                    className="group flex items-center gap-4 rounded-2xl border border-brand/10 bg-sage/50 p-5 transition-colors hover:border-brand/30 hover:bg-sage focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-light">
+                      <Package
+                        size={23}
+                        aria-hidden="true"
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-brand">
+                        Inventory management
+                      </h3>
+
+                      <p className="mt-1 text-xs leading-5 text-brand/60">
+                        Monitor product stock,
+                        record verified adjustments,
+                        and review inventory movements.
+                      </p>
+                    </div>
+
+                    <ArrowRight
+                      size={19}
+                      className="shrink-0 text-brand/50 transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    />
+                  </Link>
+                </nav>
+
+                <p className="mt-6 text-xs leading-6 text-brand/50">
+                  Staff operations require an
+                  authenticated and verified
+                  account. Permissions are checked
+                  again by the backend.
+                </p>
+              </section>
+            )}
+
+            {/* ==================================
                 REAL ORDER HISTORY
             ================================== */}
 
             <OrderHistory />
+
           </div>
 
           {/* ==================================
@@ -283,8 +488,12 @@ export default function AccountPage() {
 
           <aside className="space-y-6">
 
-            {/* Account session */}
+            {/* ==============================
+                ACCOUNT SESSION
+            ============================== */}
+
             <section className="rounded-[2rem] bg-brand p-7 text-white">
+
               <ShieldCheck
                 size={30}
                 className="text-gold"
@@ -306,12 +515,17 @@ export default function AccountPage() {
                   size={16}
                   aria-hidden="true"
                 />
+
                 Session active
               </div>
             </section>
 
-            {/* Delivery information */}
+            {/* ==============================
+                DELIVERY INFORMATION
+            ============================== */}
+
             <section className="rounded-[2rem] border border-brand/10 bg-white p-7">
+
               <MapPin
                 size={27}
                 className="text-brand-light"
@@ -335,8 +549,12 @@ export default function AccountPage() {
               </p>
             </section>
 
-            {/* Account security */}
+            {/* ==============================
+                ACCOUNT SECURITY
+            ============================== */}
+
             <section className="rounded-[2rem] border border-brand/10 bg-white p-7">
+
               <h2 className="text-lg font-extrabold text-brand">
                 Account security
               </h2>

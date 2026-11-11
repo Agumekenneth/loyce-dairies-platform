@@ -1,16 +1,33 @@
 
 import { createHash, randomBytes } from 'node:crypto'
-import type { CookieOptions, Request, Response } from 'express'
+
+import type {
+  CookieOptions,
+  Request,
+  Response,
+} from 'express'
 
 import { prisma } from './prisma.js'
 
-const isProduction = process.env.NODE_ENV === 'production'
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// AUTHENTICATED SESSION MANAGEMENT
+// ==========================================
 
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000
+const isProduction =
+  process.env.NODE_ENV === 'production'
 
-export const SESSION_COOKIE_NAME = isProduction
-  ? '__Host-ld_session'
-  : 'ld_session'
+const SESSION_DURATION_MS =
+  24 * 60 * 60 * 1000
+
+// ==========================================
+// SESSION COOKIE CONFIGURATION
+// ==========================================
+
+export const SESSION_COOKIE_NAME =
+  isProduction
+    ? '__Host-ld_session'
+    : 'ld_session'
 
 const cookieOptions: CookieOptions = {
   httpOnly: true,
@@ -19,16 +36,27 @@ const cookieOptions: CookieOptions = {
   path: '/',
 }
 
-// Hash an unpredictable session token before database storage.
-function hashSessionToken(token: string): string {
+// ==========================================
+// HASH SESSION TOKEN
+// ==========================================
+
+function hashSessionToken(
+  token: string,
+): string {
   return createHash('sha256')
     .update(token)
     .digest('hex')
 }
 
-// Extract and validate the session cookie.
-function readSessionToken(req: Request): string | null {
-  const token: unknown = req.cookies?.[SESSION_COOKIE_NAME]
+// ==========================================
+// READ SESSION COOKIE
+// ==========================================
+
+function readSessionToken(
+  req: Request,
+): string | null {
+  const token: unknown =
+    req.cookies?.[SESSION_COOKIE_NAME]
 
   if (
     typeof token !== 'string' ||
@@ -40,14 +68,19 @@ function readSessionToken(req: Request): string | null {
   return token
 }
 
-// Create a new authenticated session.
+// ==========================================
+// CREATE AUTHENTICATED SESSION
+// ==========================================
+
 export async function createSession(
   customerId: string,
   res: Response,
 ): Promise<void> {
-  const token = randomBytes(32).toString('base64url')
+  const token =
+    randomBytes(32).toString('base64url')
 
-  const tokenHash = hashSessionToken(token)
+  const tokenHash =
+    hashSessionToken(token)
 
   const expiresAt = new Date(
     Date.now() + SESSION_DURATION_MS,
@@ -61,58 +94,100 @@ export async function createSession(
     },
   })
 
-  res.cookie(SESSION_COOKIE_NAME, token, {
-    ...cookieOptions,
-    maxAge: SESSION_DURATION_MS,
-  })
+  res.cookie(
+    SESSION_COOKIE_NAME,
+    token,
+    {
+      ...cookieOptions,
+      maxAge: SESSION_DURATION_MS,
+    },
+  )
 }
 
-// Retrieve a valid, unexpired, non-revoked session.
-export async function getCurrentSession(req: Request) {
+// ==========================================
+// RETRIEVE CURRENT SESSION
+// ==========================================
+
+export async function getCurrentSession(
+  req: Request,
+) {
   const token = readSessionToken(req)
 
-  if (!token) return null
-
-  const session = await prisma.customerSession.findUnique({
-    where: {
-      tokenHash: hashSessionToken(token),
-    },
-
-    include: {
-      customer: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          phone: true,
-          emailVerifiedAt: true,
-          isActive: true,
-          createdAt: true,
-        },
-      },
-    },
-  })
-
-  if (!session) return null
-
-  if (session.revokedAt !== null) return null
-
-  if (session.expiresAt.getTime() <= Date.now()) {
+  if (!token) {
     return null
   }
 
-  if (!session.customer.isActive) return null
+  const session =
+    await prisma.customerSession.findUnique({
+      where: {
+        tokenHash: hashSessionToken(token),
+      },
+
+      include: {
+        customer: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            emailVerifiedAt: true,
+
+            // Required for frontend
+            // staff workspace visibility.
+            //
+            // Always retrieved from
+            // PostgreSQL, never from
+            // a browser-supplied role.
+
+            role: true,
+
+            isActive: true,
+            createdAt: true,
+          },
+        },
+      },
+    })
+
+  if (!session) {
+    return null
+  }
+
+  // Reject revoked sessions.
+
+  if (session.revokedAt !== null) {
+    return null
+  }
+
+  // Reject expired sessions.
+
+  if (
+    session.expiresAt.getTime() <=
+    Date.now()
+  ) {
+    return null
+  }
+
+  // Reject inactive customer accounts.
+
+  if (!session.customer.isActive) {
+    return null
+  }
 
   return session
 }
 
-// Revoke the session identified by the incoming cookie.
+// ==========================================
+// REVOKE CURRENT SESSION
+// ==========================================
+
 export async function revokeCurrentSession(
   req: Request,
 ): Promise<void> {
   const token = readSessionToken(req)
 
-  if (!token) return
+  if (!token) {
+    return
+  }
 
   await prisma.customerSession.updateMany({
     where: {
@@ -126,8 +201,13 @@ export async function revokeCurrentSession(
   })
 }
 
-// Remove the browser session cookie.
-export function clearSessionCookie(res: Response): void {
+// ==========================================
+// CLEAR SESSION COOKIE
+// ==========================================
+
+export function clearSessionCookie(
+  res: Response,
+): void {
   res.clearCookie(
     SESSION_COOKIE_NAME,
     cookieOptions,

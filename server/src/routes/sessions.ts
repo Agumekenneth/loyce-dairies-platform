@@ -15,9 +15,18 @@ import {
   clearSessionCookie,
 } from '../lib/session.js'
 
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// CUSTOMER AUTHENTICATION ROUTES
+// STAFF ROLE SUPPORT
+// ==========================================
+
 const router = Router()
 
-// Validate login information.
+// ==========================================
+// LOGIN VALIDATION
+// ==========================================
+
 const loginSchema = z.object({
   email: z
     .string()
@@ -31,12 +40,19 @@ const loginSchema = z.object({
     .max(128),
 }).strict()
 
+// ==========================================
+// LOGIN RATE LIMITING
+// ==========================================
+
 // Restrict repeated login attempts.
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+
   message: {
     success: false,
     message:
@@ -44,7 +60,10 @@ const loginLimiter = rateLimit({
   },
 })
 
-// Check the browser request origin.
+// ==========================================
+// TRUSTED ORIGIN CHECK
+// ==========================================
+
 const checkTrustedOrigin: RequestHandler = (
   req,
   res,
@@ -75,18 +94,30 @@ router.post(
   '/login',
   checkTrustedOrigin,
   loginLimiter,
+
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
+
+    // ======================================
+    // VALIDATE REQUEST CONTENT TYPE
+    // ======================================
 
     if (!req.is('application/json')) {
       res.status(415).json({
         success: false,
-        message: 'Content-Type must be application/json.',
+        message:
+          'Content-Type must be application/json.',
       })
       return
     }
 
-    const result = loginSchema.safeParse(req.body)
+    // ======================================
+    // VALIDATE LOGIN CREDENTIALS
+    // ======================================
+
+    const result = loginSchema.safeParse(
+      req.body,
+    )
 
     if (!result.success) {
       res.status(400).json({
@@ -96,13 +127,27 @@ router.post(
       return
     }
 
-    const { email, password } = result.data
+    const { email, password } =
+      result.data
 
-    const customer = await prisma.customer.findUnique({
-      where: { email },
-    })
+    // ======================================
+    // RETRIEVE CUSTOMER ACCOUNT
+    // ======================================
 
-    // Use one response for invalid login credentials.
+    const customer =
+      await prisma.customer.findUnique({
+        where: {
+          email,
+        },
+      })
+
+    // ======================================
+    // VALIDATE CUSTOMER ACCOUNT
+    // ======================================
+
+    // Do not reveal whether the supplied
+    // email address belongs to an account.
+
     if (
       !customer ||
       !customer.isActive ||
@@ -115,10 +160,15 @@ router.post(
       return
     }
 
-    const passwordValid = await argon2.verify(
-      customer.passwordHash,
-      password,
-    )
+    // ======================================
+    // VERIFY PASSWORD
+    // ======================================
+
+    const passwordValid =
+      await argon2.verify(
+        customer.passwordHash,
+        password,
+      )
 
     if (!passwordValid) {
       res.status(401).json({
@@ -128,21 +178,48 @@ router.post(
       return
     }
 
-    // Revoke any existing session on this client.
+    // ======================================
+    // REVOKE PREVIOUS CLIENT SESSION
+    // ======================================
+
     await revokeCurrentSession(req)
 
-    // Issue a new unpredictable session token.
-    await createSession(customer.id, res)
+    // ======================================
+    // CREATE AUTHENTICATED SESSION
+    // ======================================
+
+    await createSession(
+      customer.id,
+      res,
+    )
+
+    // ======================================
+    // LOGIN RESPONSE
+    // ======================================
+
+    // Return only the customer details
+    // required by the frontend.
+    //
+    // The role comes directly from
+    // PostgreSQL and is not supplied
+    // or controlled by the browser.
 
     res.status(200).json({
       success: true,
       message: 'Login successful.',
+
       data: {
         id: customer.id,
         fullName: customer.fullName,
         email: customer.email,
         phone: customer.phone,
-        emailVerifiedAt: customer.emailVerifiedAt,
+        emailVerifiedAt:
+          customer.emailVerifiedAt,
+
+        // Required for staff workspace
+        // navigation in the React app.
+
+        role: customer.role,
       },
     })
   },
@@ -152,10 +229,14 @@ router.post(
 // GET /api/auth/me
 // ==========================================
 
+// Retrieve authenticated customer details
+// from the current HTTP-only session cookie.
+
 router.get('/me', async (req, res) => {
   res.set('Cache-Control', 'no-store')
 
-  const session = await getCurrentSession(req)
+  const session =
+    await getCurrentSession(req)
 
   if (!session) {
     res.status(401).json({
@@ -165,14 +246,35 @@ router.get('/me', async (req, res) => {
     return
   }
 
-  const { isActive, ...customer } = session.customer
+  // ========================================
+  // EXCLUDE INTERNAL ACCOUNT STATE
+  // ========================================
+
+  // getCurrentSession() now selects
+  // role from PostgreSQL.
+  //
+  // Exclude isActive from the response.
+  // Retain the customer role for frontend
+  // navigation and account display.
+
+  const {
+    isActive,
+    ...customer
+  } = session.customer
+
+  // ========================================
+  // SESSION RESPONSE
+  // ========================================
 
   res.status(200).json({
     success: true,
+
     data: {
       customer,
+
       session: {
-        expiresAt: session.expiresAt,
+        expiresAt:
+          session.expiresAt,
       },
     },
   })
@@ -185,20 +287,35 @@ router.get('/me', async (req, res) => {
 router.post(
   '/logout',
   checkTrustedOrigin,
+
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
 
-    // Require a custom header for this cookie-authenticated
-    // state-changing request.
-    if (req.get('X-Loyce-Request') !== '1') {
+    // ======================================
+    // REQUIRE TRUSTED REQUEST HEADER
+    // ======================================
+
+    if (
+      req.get('X-Loyce-Request') !== '1'
+    ) {
       res.status(403).json({
         success: false,
-        message: 'Required request header is missing.',
+        message:
+          'Required request header is missing.',
       })
       return
     }
 
+    // ======================================
+    // REVOKE AUTHENTICATED SESSION
+    // ======================================
+
     await revokeCurrentSession(req)
+
+    // ======================================
+    // CLEAR SESSION COOKIE
+    // ======================================
+
     clearSessionCookie(res)
 
     res.status(200).json({
@@ -207,5 +324,9 @@ router.post(
     })
   },
 )
+
+// ==========================================
+// EXPORT AUTHENTICATION ROUTER
+// ==========================================
 
 export default router
