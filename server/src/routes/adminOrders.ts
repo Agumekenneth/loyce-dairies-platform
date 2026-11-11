@@ -7,7 +7,16 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
 
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// MILESTONE 4.7.2
+// STAFF ORDER MANAGEMENT
+// WITH AUTOMATIC INVENTORY RESTORATION
+// ==========================================
+
 const router = Router()
+
+const MAX_DATABASE_INTEGER = 2_147_483_647
 
 // ==========================================
 // VALIDATION
@@ -27,7 +36,12 @@ type OrderStatus = z.infer<typeof statusSchema>
 
 const listSchema = z.object({
   status: statusSchema.optional(),
-  cursor: z.string().min(1).max(100).optional(),
+
+  cursor: z.string()
+    .min(1)
+    .max(100)
+    .optional(),
+
   limit: z.coerce.number()
     .int()
     .min(1)
@@ -37,6 +51,7 @@ const listSchema = z.object({
 
 const updateStatusSchema = z.object({
   status: statusSchema,
+
   note: z.string()
     .trim()
     .min(3)
@@ -81,21 +96,25 @@ const allowedTransitions: Record<
 }
 
 // ==========================================
-// ERROR HANDLING
+// STAFF ORDER ERROR
 // ==========================================
 
 class StaffOrderError extends Error {
+  readonly statusCode: number
+
   constructor(
-    public readonly statusCode: number,
+    statusCode: number,
     message: string,
   ) {
     super(message)
+
     this.name = 'StaffOrderError'
+    this.statusCode = statusCode
   }
 }
 
 // ==========================================
-// STAFF AUTHORIZATION
+// STAFF AUTHENTICATION AND AUTHORIZATION
 // ==========================================
 
 const requireStaff: RequestHandler = async (
@@ -113,14 +132,16 @@ const requireStaff: RequestHandler = async (
     return
   }
 
-  // Recheck the current database role on every request.
-  // Never trust a role provided by the browser.
+  // Recheck staff permissions against
+  // PostgreSQL on every request.
+
   const account = await prisma.customer.findUnique({
     where: {
       id: session.customer.id,
     },
 
     select: {
+      id: true,
       role: true,
       isActive: true,
       emailVerifiedAt: true,
@@ -140,11 +161,11 @@ const requireStaff: RequestHandler = async (
     return
   }
 
-  res.locals.staffId = session.customer.id
+  res.locals.staffId = account.id
+
   next()
 }
 
-// All admin order endpoints require staff authorization.
 router.use(requireStaff)
 
 // ==========================================
@@ -189,6 +210,7 @@ const requireTrustedUpdate: RequestHandler = (
 const updateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
+
   standardHeaders: 'draft-8',
   legacyHeaders: false,
 
@@ -200,7 +222,7 @@ const updateLimiter = rateLimit({
 })
 
 // ==========================================
-// RESPONSE FIELD SELECTION
+// ORDER RESPONSE FIELD SELECTION
 // ==========================================
 
 const orderListSelect = {
@@ -279,6 +301,8 @@ const orderDetailsSelect = {
 
 // ==========================================
 // GET /api/admin/orders
+//
+// STAFF ORDER LIST
 // ==========================================
 
 router.get('/', async (req, res) => {
@@ -321,7 +345,11 @@ router.get('/', async (req, res) => {
   })
 
   const hasMore = orders.length > limit
-  const visibleOrders = orders.slice(0, limit)
+
+  const visibleOrders = orders.slice(
+    0,
+    limit,
+  )
 
   const nextCursor = hasMore
     ? visibleOrders[visibleOrders.length - 1].id
@@ -337,6 +365,8 @@ router.get('/', async (req, res) => {
 
 // ==========================================
 // GET /api/admin/orders/:orderId
+//
+// STAFF ORDER DETAILS
 // ==========================================
 
 router.get('/:orderId', async (req, res) => {
@@ -360,6 +390,7 @@ router.get('/:orderId', async (req, res) => {
     where: {
       id: orderId,
     },
+
     select: orderDetailsSelect,
   })
 
@@ -379,14 +410,21 @@ router.get('/:orderId', async (req, res) => {
 
 // ==========================================
 // PATCH /api/admin/orders/:orderId/status
+//
+// UPDATE ORDER STATUS AND RESTORE STOCK
 // ==========================================
 
 router.patch(
   '/:orderId/status',
   requireTrustedUpdate,
   updateLimiter,
+
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
+
+    // ======================================
+    // VALIDATE ORDER ID
+    // ======================================
 
     const orderId = req.params.orderId
 
@@ -402,6 +440,10 @@ router.patch(
       return
     }
 
+    // ======================================
+    // VALIDATE CONTENT TYPE
+    // ======================================
+
     if (!req.is('application/json')) {
       res.status(415).json({
         success: false,
@@ -411,6 +453,10 @@ router.patch(
       return
     }
 
+    // ======================================
+    // VALIDATE STATUS CHANGE
+    // ======================================
+
     const parsed = updateStatusSchema.safeParse(
       req.body,
     )
@@ -419,15 +465,21 @@ router.patch(
       res.status(400).json({
         success: false,
         message: 'Invalid status update.',
-        errors: parsed.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-        })),
+
+        errors: parsed.error.issues.map(
+          (issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          }),
+        ),
       })
       return
     }
 
-    const { status: nextStatus, note } = parsed.data
+    const {
+      status: nextStatus,
+      note,
+    } = parsed.data
 
     if (
       nextStatus === 'CANCELLED' &&
@@ -444,9 +496,16 @@ router.patch(
     const staffId = res.locals.staffId as string
 
     try {
+      // ====================================
+      // ATOMIC ORDER-STATUS TRANSACTION
+      // ====================================
+
       const updatedOrder = await prisma.$transaction(
         async (tx) => {
-          // Read current order status.
+          // ==================================
+          // 1. RETRIEVE CURRENT ORDER
+          // ==================================
+
           const currentOrder =
             await tx.order.findUnique({
               where: {
@@ -457,6 +516,16 @@ router.patch(
                 id: true,
                 status: true,
                 fulfillmentMethod: true,
+
+                // Needed to verify that the
+                // inventory events correspond
+                // to purchased quantities.
+                items: {
+                  select: {
+                    productId: true,
+                    quantity: true,
+                  },
+                },
               },
             })
 
@@ -466,6 +535,10 @@ router.patch(
               'Order not found.',
             )
           }
+
+          // ==================================
+          // 2. VERIFY ALLOWED TRANSITION
+          // ==================================
 
           const allowed =
             allowedTransitions[currentOrder.status]
@@ -477,7 +550,10 @@ router.patch(
             )
           }
 
-          // Enforce fulfillment-specific statuses.
+          // ==================================
+          // 3. CHECK FULFILLMENT METHOD
+          // ==================================
+
           if (
             nextStatus === 'READY_FOR_PICKUP' &&
             currentOrder.fulfillmentMethod !== 'PICKUP'
@@ -498,9 +574,18 @@ router.patch(
             )
           }
 
-          // Optimistic concurrency control:
-          // update only if the current status
-          // still matches what we read.
+          // ==================================
+          // 4. CONDITIONAL STATUS UPDATE
+          // ==================================
+
+          // Only one request can successfully
+          // transition this order from its
+          // current status.
+          //
+          // This protects against repeated
+          // cancellation and duplicate
+          // stock restoration.
+
           const result = await tx.order.updateMany({
             where: {
               id: currentOrder.id,
@@ -519,8 +604,284 @@ router.patch(
             )
           }
 
-          // Record who changed the order.
-          // This is saved in the same transaction.
+          // ==================================
+          // 5. RESTORE STOCK ON CANCELLATION
+          // ==================================
+
+          if (nextStatus === 'CANCELLED') {
+            // Only inventory movements
+            // recorded at checkout are
+            // eligible for restoration.
+            //
+            // Historical orders created
+            // before inventory tracking
+            // have no ORDER_PLACED events
+            // and must not gain stock.
+
+            const placementEvents =
+              await tx.inventoryEvent.findMany({
+                where: {
+                  orderId: currentOrder.id,
+                  action: 'ORDER_PLACED',
+                },
+
+                select: {
+                  productId: true,
+                  productName: true,
+                  productUnit: true,
+                  quantityChange: true,
+                },
+
+                orderBy: {
+                  productId: 'asc',
+                },
+              })
+
+            // Detect any previously recorded
+            // restoration event.
+            //
+            // This is an additional safeguard
+            // alongside the conditional
+            // order-status update.
+
+            const previousRestoration =
+              await tx.inventoryEvent.findFirst({
+                where: {
+                  orderId: currentOrder.id,
+                  action: 'ORDER_CANCELLED',
+                },
+
+                select: {
+                  id: true,
+                },
+              })
+
+            if (previousRestoration) {
+              throw new StaffOrderError(
+                409,
+                'Inventory has already been restored for this order. Review its history.',
+              )
+            }
+
+            if (placementEvents.length > 0) {
+              // =================================
+              // VERIFY ALL PURCHASED ITEMS
+              // =================================
+
+              // Every item in an inventory-
+              // tracked order should have
+              // exactly one matching checkout
+              // deduction event.
+
+              if (
+                placementEvents.length !==
+                currentOrder.items.length
+              ) {
+                throw new StaffOrderError(
+                  409,
+                  'Inventory records for this order are incomplete. Manual reconciliation is required.',
+                )
+              }
+
+              const purchasedItems = new Map(
+                currentOrder.items.map(
+                  (item) => [
+                    item.productId,
+                    item.quantity,
+                  ],
+                ),
+              )
+
+              if (
+                purchasedItems.size !==
+                currentOrder.items.length
+              ) {
+                throw new StaffOrderError(
+                  409,
+                  'Order items require inventory reconciliation.',
+                )
+              }
+
+              const restorationRecords: Array<{
+                productId: number
+                productName: string
+                productUnit: string
+                orderId: string
+                changedById: string
+                action: 'ORDER_CANCELLED'
+                quantityChange: number
+                quantityBefore: number
+                quantityAfter: number
+                note: string
+              }> = []
+
+              // =================================
+              // RESTORE PRODUCT QUANTITIES
+              // =================================
+
+              // The events are processed in
+              // product ID order, reducing
+              // potential database deadlocks.
+
+              for (const movement of placementEvents) {
+                const productId =
+                  movement.productId
+
+                // A deleted product cannot
+                // be restored automatically.
+                // Fail rather than silently
+                // recording incomplete stock.
+
+                if (productId === null) {
+                  throw new StaffOrderError(
+                    409,
+                    'A purchased product no longer exists. Manual stock reconciliation is required.',
+                  )
+                }
+
+                const restoreQuantity =
+                  -movement.quantityChange
+
+                const purchasedQuantity =
+                  purchasedItems.get(productId)
+
+                if (
+                  !Number.isSafeInteger(restoreQuantity) ||
+                  restoreQuantity <= 0 ||
+                  restoreQuantity > MAX_DATABASE_INTEGER ||
+                  purchasedQuantity !== restoreQuantity
+                ) {
+                  throw new StaffOrderError(
+                    409,
+                    'Inventory movement quantities are inconsistent with this order.',
+                  )
+                }
+
+                // Read the current balance.
+
+                const product =
+                  await tx.product.findUnique({
+                    where: {
+                      id: productId,
+                    },
+
+                    select: {
+                      id: true,
+                      stockQuantity: true,
+                    },
+                  })
+
+                if (!product) {
+                  throw new StaffOrderError(
+                    409,
+                    'A purchased product could not be found. Stock reconciliation is required.',
+                  )
+                }
+
+                const quantityBefore =
+                  product.stockQuantity
+
+                const quantityAfter =
+                  quantityBefore +
+                  restoreQuantity
+
+                // Prevent overflow beyond
+                // PostgreSQL INTEGER limits.
+
+                if (
+                  !Number.isSafeInteger(quantityAfter) ||
+                  quantityAfter > MAX_DATABASE_INTEGER
+                ) {
+                  throw new StaffOrderError(
+                    409,
+                    'Restoring this stock would exceed the supported inventory limit.',
+                  )
+                }
+
+                // =================================
+                // ATOMIC CONDITIONAL INCREMENT
+                // =================================
+
+                // If another transaction has
+                // changed this product's stock,
+                // reject this attempt instead
+                // of writing incorrect audit
+                // quantities.
+
+                const stockUpdate =
+                  await tx.product.updateMany({
+                    where: {
+                      id: productId,
+                      stockQuantity: quantityBefore,
+                    },
+
+                    data: {
+                      stockQuantity: {
+                        increment: restoreQuantity,
+                      },
+                    },
+                  })
+
+                if (stockUpdate.count !== 1) {
+                  throw new StaffOrderError(
+                    409,
+                    'Product stock changed during restoration. Refresh and retry.',
+                  )
+                }
+
+                // Prepare the inventory event.
+
+                restorationRecords.push({
+                  productId,
+
+                  productName:
+                    movement.productName,
+
+                  productUnit:
+                    movement.productUnit,
+
+                  orderId:
+                    currentOrder.id,
+
+                  changedById:
+                    staffId,
+
+                  action:
+                    'ORDER_CANCELLED',
+
+                  quantityChange:
+                    restoreQuantity,
+
+                  quantityBefore,
+                  quantityAfter,
+
+                  note:
+                    `Stock restored after order cancellation: ${note}`,
+                })
+              }
+
+              // =================================
+              // RECORD INVENTORY RESTORATION
+              // =================================
+
+              // Store all inventory events
+              // in the same transaction as
+              // the order-status change.
+
+              await tx.inventoryEvent.createMany({
+                data: restorationRecords,
+              })
+            }
+
+            // Historical orders with zero
+            // ORDER_PLACED events receive
+            // no artificial stock changes.
+          }
+
+          // ==================================
+          // 6. RECORD ORDER STATUS HISTORY
+          // ==================================
+
           await tx.orderStatusEvent.create({
             data: {
               order: {
@@ -535,11 +896,19 @@ router.patch(
                 },
               },
 
-              fromStatus: currentOrder.status,
-              toStatus: nextStatus,
+              fromStatus:
+                currentOrder.status,
+
+              toStatus:
+                nextStatus,
+
               note: note ?? null,
             },
           })
+
+          // ==================================
+          // 7. RETURN UPDATED ORDER
+          // ==================================
 
           return tx.order.findUniqueOrThrow({
             where: {
@@ -550,6 +919,10 @@ router.patch(
           })
         },
       )
+
+      // ====================================
+      // SUCCESS RESPONSE
+      // ====================================
 
       res.status(200).json({
         success: true,
@@ -569,5 +942,9 @@ router.patch(
     }
   },
 )
+
+// ==========================================
+// EXPORT STAFF ORDER ROUTER
+// ==========================================
 
 export default router

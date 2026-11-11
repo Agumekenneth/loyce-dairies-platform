@@ -38,13 +38,7 @@ model Product {
   badge       String?
   isActive    Boolean @default(true)
 
-  // Inventory quantity measured in whole
-  // sellable units of this product.
-  //
-  // Existing products initially receive
-  // zero stock until staff enter verified
-  // inventory quantities.
-
+  // Inventory in whole sellable units.
   stockQuantity Int @default(0)
 
   // Product category
@@ -86,7 +80,6 @@ model Customer {
   emailVerifiedAt DateTime?
   isActive        Boolean   @default(true)
 
-  // New accounts have customer permissions.
   role CustomerRole @default(CUSTOMER)
 
   // Authentication sessions
@@ -98,13 +91,13 @@ model Customer {
   // Customer orders
   orders Order[]
 
-  // Staff order-status audit history
+  // Staff order status changes
   statusChangesMade OrderStatusEvent[] @relation("StaffOrderStatusChanges")
 
-  // Staff delivery-zone audit history
+  // Staff delivery zone changes
   deliveryZoneChanges DeliveryZoneAuditEvent[] @relation("StaffDeliveryZoneChanges")
 
-  // Staff inventory adjustments
+  // Staff inventory changes
   inventoryChanges InventoryEvent[] @relation("StaffInventoryChanges")
 
   createdAt DateTime @default(now())
@@ -216,10 +209,8 @@ model DeliveryZone {
   feeUgx   Int
   isActive Boolean @default(false)
 
-  // Customer delivery orders
   orders Order[]
 
-  // Staff configuration audit history
   auditEvents DeliveryZoneAuditEvent[]
 
   createdAt DateTime @default(now())
@@ -238,15 +229,15 @@ model Order {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  // Order fulfillment
+  // Fulfillment
   fulfillmentMethod FulfillmentMethod
   status            OrderStatus       @default(PENDING)
 
-  // Payment information
+  // Payment
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus @default(PENDING)
 
-  // Customer contact information
+  // Customer contact details
   recipientName String
   contactPhone  String
 
@@ -257,7 +248,7 @@ model Order {
   deliveryZoneId Int?
   deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
 
-  // Snapshot of the delivery zone name
+  // Delivery zone name snapshot
   deliveryZoneName String?
 
   // Amounts in Uganda shillings
@@ -265,14 +256,13 @@ model Order {
   deliveryFeeUgx Int
   totalUgx       Int
 
-  // Products purchased
+  // Purchased items
   items OrderItem[]
 
-  // Staff order-status audit history
+  // Order status audit history
   statusEvents OrderStatusEvent[]
 
-  // Inventory movements associated
-  // with this order
+  // Inventory movements
   inventoryEvents InventoryEvent[]
 
   createdAt DateTime @default(now())
@@ -292,15 +282,13 @@ model OrderItem {
 
   // Parent order
   orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   // Product relationship
-  // Product deletion must not erase
-  // historical order details.
   productId Int?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
-  // Product details at checkout
+  // Product snapshots at checkout
   productName String
   productUnit String
 
@@ -322,20 +310,19 @@ model OrderStatusEvent {
 
   // Affected order
   orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   // Staff member making the change
   changedById String
   changedBy   Customer @relation("StaffOrderStatusChanges", fields: [changedById], references: [id], onDelete: Restrict)
 
-  // Order-status transition
+  // Status transition
   fromStatus OrderStatus
   toStatus   OrderStatus
 
   // Staff explanation
   note String?
 
-  // Event timestamp
   createdAt DateTime @default(now())
 
   @@index([orderId, createdAt])
@@ -368,14 +355,13 @@ model DeliveryZoneAuditEvent {
   changedById String
   changedBy   Customer @relation("StaffDeliveryZoneChanges", fields: [changedById], references: [id], onDelete: Restrict)
 
-  // Type of configuration change
+  // Configuration change
   action DeliveryZoneAuditAction
 
-  // Previous and updated configuration
+  // Previous and new values
   previousValues Json?
   newValues      Json
 
-  // Audit timestamp
   createdAt DateTime @default(now())
 
   @@index([zoneId, createdAt])
@@ -383,16 +369,19 @@ model DeliveryZoneAuditEvent {
 }
 
 // ==========================================
-// INVENTORY AUDIT ACTIONS
+// INVENTORY ACTIONS
+// MILESTONE 4.7.2
 // ==========================================
 
 enum InventoryAction {
-  // Staff manually set a verified
-  // inventory balance
+  // Staff inventory adjustment
   STAFF_SET
 
-  // Stock consumed by customer checkout
+  // Checkout stock deduction
   ORDER_PLACED
+
+  // Stock restoration following cancellation
+  ORDER_CANCELLED
 }
 
 // ==========================================
@@ -402,46 +391,27 @@ enum InventoryAction {
 model InventoryEvent {
   id String @id @default(cuid())
 
-  // ========================================
-  // PRODUCT RELATIONSHIP
-  // ========================================
-
-  // Product ID can become null if
-  // a product is deleted.
+  // Product relationship
   productId Int?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
-  // Retain product details for audit history
+  // Historical product snapshots
   productName String
   productUnit String
 
-  // ========================================
-  // CUSTOMER ORDER RELATIONSHIP
-  // ========================================
-
-  // Populated for stock consumed
-  // during customer checkout.
+  // Associated customer order
   orderId String?
   order   Order? @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
-  // ========================================
-  // STAFF RELATIONSHIP
-  // ========================================
-
-  // Populated when staff adjust inventory.
-  // Null for automatic checkout deductions.
+  // Staff account responsible for changes
+  // Null when checkout deducts inventory
   changedById String?
   changedBy   Customer? @relation("StaffInventoryChanges", fields: [changedById], references: [id], onDelete: Restrict)
 
-  // ========================================
-  // INVENTORY MOVEMENT
-  // ========================================
-
+  // Type of inventory movement
   action InventoryAction
 
   // Signed quantity change
-  // Positive: stock increased
-  // Negative: stock decreased
   quantityChange Int
 
   // Previous quantity
@@ -450,15 +420,11 @@ model InventoryEvent {
   // New quantity
   quantityAfter Int
 
-  // Reason for the movement
+  // Explanation
   note String?
 
   // Audit timestamp
   createdAt DateTime @default(now())
-
-  // ========================================
-  // INDEXES
-  // ========================================
 
   @@index([productId, createdAt])
   @@index([orderId])
