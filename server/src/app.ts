@@ -3,6 +3,17 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 
+import {
+  dirname,
+  extname,
+  join,
+  resolve,
+} from 'node:path'
+
+import {
+  fileURLToPath,
+} from 'node:url'
+
 import type {
   ErrorRequestHandler,
 } from 'express'
@@ -10,71 +21,90 @@ import type {
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
-// MILESTONE 4.8.2
+//
+// MILESTONE 4.12I
+// SINGLE-ORIGIN PRODUCTION HOSTING
 // ==========================================
 
-// Public product catalogue
+// Public catalogue
 
 import catalogRoutes from './routes/catalog.js'
 
-// Customer authentication and sessions
+// Authentication
 
 import authRoutes from './routes/auth.js'
 import sessionRoutes from './routes/sessions.js'
 
-// Email verification and password recovery
+// Email verification and recovery
 
 import emailVerificationRoutes from './routes/emailVerification.js'
 import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
-// Customer checkout and order history
+// Customer orders
 
 import orderRoutes from './routes/orders.js'
 
 // Staff administration
 
 import adminOrdersRouter from './routes/adminOrders.js'
-
 import adminDeliveryZonesRouter from './routes/adminDeliveryZones.js'
-
 import adminInventoryRouter from './routes/adminInventory.js'
-
-// Staff product management — Milestone 4.8
-
 import adminProductsRouter from './routes/adminProducts.js'
 
 // ==========================================
-// INITIALIZE EXPRESS APPLICATION
+// INITIALIZE EXPRESS
 // ==========================================
 
 const app = express()
 
-// Avoid exposing the Express version or
-// implementation via its default header.
+const isProduction =
+  process.env.NODE_ENV === 'production'
 
 app.disable('x-powered-by')
 
 // ==========================================
-// FRONTEND ORIGIN CONFIGURATION
+// FRONTEND ORIGIN
 // ==========================================
+
+/**
+ * The same CLIENT_URL is used by:
+ *
+ * - Express CORS
+ * - Checkout origin protection
+ *
+ * Production must explicitly configure it.
+ */
+
+if (
+  isProduction &&
+  !process.env.CLIENT_URL
+) {
+  throw new Error(
+    'CLIENT_URL must be configured in production.',
+  )
+}
 
 const clientUrl =
   process.env.CLIENT_URL ||
   'http://localhost:5173'
 
+const clientOrigin = new URL(
+  clientUrl,
+).origin
+
 // ==========================================
-// CROSS-ORIGIN RESOURCE SHARING
+// CORS
 // ==========================================
 
 app.use(
   cors({
-    origin: clientUrl,
+    origin: clientOrigin,
     credentials: true,
   }),
 )
 
 // ==========================================
-// REQUEST BODY PARSING
+// REQUEST PARSING
 // ==========================================
 
 app.use(
@@ -83,19 +113,15 @@ app.use(
   }),
 )
 
-// ==========================================
-// COOKIE PARSING
-// ==========================================
-
 app.use(cookieParser())
 
 // ==========================================
-// HEALTH CHECK
-//
-// GET /api/health
+// API HEALTH CHECK
 // ==========================================
 
 app.get('/api/health', (_req, res) => {
+  res.set('Cache-Control', 'no-store')
+
   res.status(200).json({
     success: true,
     status: 'ok',
@@ -104,20 +130,13 @@ app.get('/api/health', (_req, res) => {
 })
 
 // ==========================================
-// PUBLIC CATALOGUE ROUTES
-//
-// GET /api/categories
-// GET /api/products
-// GET /api/products/:id
+// PUBLIC PRODUCT CATALOGUE
 // ==========================================
 
 app.use('/api', catalogRoutes)
 
 // ==========================================
 // CUSTOMER AUTHENTICATION
-//
-// Registration, login, current session
-// and logout.
 // ==========================================
 
 app.use('/api/auth', authRoutes)
@@ -143,25 +162,13 @@ app.use(
 )
 
 // ==========================================
-// CUSTOMER ORDERS
-//
-// GET  /api/delivery-zones
-// POST /api/orders/checkout
-// GET  /api/orders
-// GET  /api/orders/:orderId
-//
-// Inventory deduction remains part of
-// the existing checkout implementation.
+// CHECKOUT AND CUSTOMER ORDERS
 // ==========================================
 
 app.use('/api', orderRoutes)
 
 // ==========================================
 // STAFF ORDER MANAGEMENT
-//
-// GET   /api/admin/orders
-// GET   /api/admin/orders/:orderId
-// PATCH /api/admin/orders/:orderId/status
 // ==========================================
 
 app.use(
@@ -170,7 +177,7 @@ app.use(
 )
 
 // ==========================================
-// STAFF DELIVERY-ZONE MANAGEMENT
+// STAFF DELIVERY ZONES
 // ==========================================
 
 app.use(
@@ -179,14 +186,7 @@ app.use(
 )
 
 // ==========================================
-// STAFF INVENTORY MANAGEMENT
-//
-// GET   /api/admin/inventory
-// GET   /api/admin/inventory/:productId/events
-// PATCH /api/admin/inventory/:productId
-//
-// Stock reconciliation and audit events
-// remain exclusively in this router.
+// STAFF INVENTORY
 // ==========================================
 
 app.use(
@@ -196,18 +196,6 @@ app.use(
 
 // ==========================================
 // STAFF PRODUCT MANAGEMENT
-// MILESTONE 4.8.2
-//
-// GET   /api/admin/products
-// GET   /api/admin/products/:productId
-// POST  /api/admin/products
-// PATCH /api/admin/products/:productId
-//
-// Product management cannot directly
-// change stockQuantity.
-//
-// Authentication and write protection
-// are enforced inside adminProductsRouter.
 // ==========================================
 
 app.use(
@@ -216,20 +204,114 @@ app.use(
 )
 
 // ==========================================
-// UNKNOWN API ENDPOINTS
+// PRODUCTION FRONTEND HOSTING
 // ==========================================
 
-// Keep this handler after all routers.
+/**
+ * Expected deployed project layout:
+ *
+ * project/
+ *   client/dist/
+ *   server/dist/app.js
+ *
+ * Build both the React frontend and
+ * Express backend before starting.
+ */
+
+if (isProduction) {
+  const serverDirectory = dirname(
+    fileURLToPath(import.meta.url),
+  )
+
+  const clientDistDirectory = resolve(
+    serverDirectory,
+    '../../client/dist',
+  )
+
+  // Serve compiled React assets.
+
+  app.use(
+    express.static(
+      clientDistDirectory,
+      {
+        index: false,
+        maxAge: '1h',
+      },
+    ),
+  )
+
+  // ======================================
+  // REACT ROUTER FALLBACK
+  // ======================================
+
+  /**
+   * Express 5 requires a named wildcard.
+   *
+   * Serve index.html for frontend routes,
+   * including:
+   *
+   * /products
+   * /products/:id
+   * /account
+   * /checkout
+   * /staff/orders
+   *
+   * API endpoints and missing assets
+   * must not be replaced with HTML.
+   */
+
+  app.get(
+    '/{*splat}',
+    (req, res, next) => {
+      const isApiRequest =
+        req.path === '/api' ||
+        req.path.startsWith('/api/')
+
+      const isAssetRequest =
+        req.path.startsWith('/assets/') ||
+        extname(req.path) !== ''
+
+      if (
+        isApiRequest ||
+        isAssetRequest
+      ) {
+        next()
+        return
+      }
+
+      res.set(
+        'Cache-Control',
+        'no-cache',
+      )
+
+      res.sendFile(
+        join(
+          clientDistDirectory,
+          'index.html',
+        ),
+        (error) => {
+          if (error) {
+            next(error)
+          }
+        },
+      )
+    },
+  )
+}
+
+// ==========================================
+// UNKNOWN ENDPOINTS
+// ==========================================
 
 app.use((_req, res) => {
   res.status(404).json({
     success: false,
-    message: 'API endpoint not found.',
+    message: 'Endpoint not found.',
   })
 })
 
 // ==========================================
-// CENTRALIZED ERROR HANDLING
+// CENTRALIZED ERROR HANDLER
 // ==========================================
 
 const errorHandler: ErrorRequestHandler = (
@@ -242,8 +324,6 @@ const errorHandler: ErrorRequestHandler = (
     next(error)
     return
   }
-
-  // Preserve existing HTTP error handling.
 
   const errorStatus =
     error &&
@@ -259,10 +339,6 @@ const errorHandler: ErrorRequestHandler = (
     errorStatus <= 599
       ? errorStatus
       : 500
-
-  // Log internal errors on the server,
-  // without exposing implementation
-  // details to clients.
 
   if (statusCode >= 500) {
     console.error(
@@ -286,12 +362,10 @@ const errorHandler: ErrorRequestHandler = (
   })
 }
 
-// The error handler must remain last.
-
 app.use(errorHandler)
 
 // ==========================================
-// EXPORT EXPRESS APPLICATION
+// EXPORT EXPRESS APP
 // ==========================================
 
 export { app }
