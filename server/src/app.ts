@@ -3,57 +3,45 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 
-import type { ErrorRequestHandler } from 'express'
+import type {
+  ErrorRequestHandler,
+} from 'express'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
+// MILESTONE 4.8.2
 // ==========================================
 
-// ==========================================
-// PUBLIC PRODUCT CATALOGUE
-// ==========================================
+// Public product catalogue
 
 import catalogRoutes from './routes/catalog.js'
 
-// ==========================================
-// CUSTOMER AUTHENTICATION
-// ==========================================
+// Customer authentication and sessions
 
 import authRoutes from './routes/auth.js'
 import sessionRoutes from './routes/sessions.js'
 
-// ==========================================
-// EMAIL VERIFICATION AND PASSWORD RECOVERY
-// ==========================================
+// Email verification and password recovery
 
 import emailVerificationRoutes from './routes/emailVerification.js'
 import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
-// ==========================================
-// CUSTOMER CHECKOUT AND ORDER HISTORY
-// ==========================================
+// Customer checkout and order history
 
 import orderRoutes from './routes/orders.js'
 
-// ==========================================
-// STAFF ORDER MANAGEMENT
-// ==========================================
+// Staff administration
 
 import adminOrdersRouter from './routes/adminOrders.js'
 
-// ==========================================
-// STAFF DELIVERY-ZONE MANAGEMENT
-// ==========================================
-
 import adminDeliveryZonesRouter from './routes/adminDeliveryZones.js'
 
-// ==========================================
-// STAFF INVENTORY MANAGEMENT
-// MILESTONE 4.7.1
-// ==========================================
-
 import adminInventoryRouter from './routes/adminInventory.js'
+
+// Staff product management — Milestone 4.8
+
+import adminProductsRouter from './routes/adminProducts.js'
 
 // ==========================================
 // INITIALIZE EXPRESS APPLICATION
@@ -61,8 +49,8 @@ import adminInventoryRouter from './routes/adminInventory.js'
 
 const app = express()
 
-// Remove the default technology-identification
-// header from HTTP responses.
+// Avoid exposing the Express version or
+// implementation via its default header.
 
 app.disable('x-powered-by')
 
@@ -78,12 +66,6 @@ const clientUrl =
 // CROSS-ORIGIN RESOURCE SHARING
 // ==========================================
 
-// Allow the configured React frontend
-// to communicate with the Express API.
-//
-// credentials: true allows authenticated
-// requests using HTTP-only session cookies.
-
 app.use(
   cors({
     origin: clientUrl,
@@ -95,10 +77,6 @@ app.use(
 // REQUEST BODY PARSING
 // ==========================================
 
-// Parse JSON request bodies.
-// Apply a size limit to reduce exposure
-// to unexpectedly large requests.
-
 app.use(
   express.json({
     limit: '1mb',
@@ -109,21 +87,13 @@ app.use(
 // COOKIE PARSING
 // ==========================================
 
-// Required by customer authentication
-// and session-based staff authorization.
-
 app.use(cookieParser())
 
 // ==========================================
-// APPLICATION HEALTH CHECK
-// ==========================================
-
+// HEALTH CHECK
+//
 // GET /api/health
-//
-// Indicates that the Express process
-// is responding.
-//
-// This is not a database health check.
+// ==========================================
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({
@@ -134,30 +104,28 @@ app.get('/api/health', (_req, res) => {
 })
 
 // ==========================================
-// PUBLIC PRODUCT CATALOGUE ROUTES
-// ==========================================
-
+// PUBLIC CATALOGUE ROUTES
+//
 // GET /api/categories
 // GET /api/products
 // GET /api/products/:id
+// ==========================================
 
 app.use('/api', catalogRoutes)
 
 // ==========================================
-// CUSTOMER AUTHENTICATION ROUTES
+// CUSTOMER AUTHENTICATION
+//
+// Registration, login, current session
+// and logout.
 // ==========================================
 
-// Customer registration and login.
-
 app.use('/api/auth', authRoutes)
-
-// Customer session management,
-// including session validation and logout.
 
 app.use('/api/auth', sessionRoutes)
 
 // ==========================================
-// EMAIL VERIFICATION ROUTES
+// EMAIL VERIFICATION
 // ==========================================
 
 app.use(
@@ -166,7 +134,7 @@ app.use(
 )
 
 // ==========================================
-// PASSWORD RECOVERY ROUTES
+// PASSWORD RECOVERY
 // ==========================================
 
 app.use(
@@ -175,30 +143,26 @@ app.use(
 )
 
 // ==========================================
-// CUSTOMER CHECKOUT AND ORDER ROUTES
-// ==========================================
-
+// CUSTOMER ORDERS
+//
 // GET  /api/delivery-zones
 // POST /api/orders/checkout
 // GET  /api/orders
 // GET  /api/orders/:orderId
-
-// Checkout validates product availability,
-// retrieves prices from PostgreSQL,
-// and performs inventory deductions.
+//
+// Inventory deduction remains part of
+// the existing checkout implementation.
+// ==========================================
 
 app.use('/api', orderRoutes)
 
 // ==========================================
-// STAFF ORDER MANAGEMENT ROUTES
-// ==========================================
-
+// STAFF ORDER MANAGEMENT
+//
 // GET   /api/admin/orders
 // GET   /api/admin/orders/:orderId
 // PATCH /api/admin/orders/:orderId/status
-
-// Staff authorization is enforced inside
-// the administrative router.
+// ==========================================
 
 app.use(
   '/api/admin/orders',
@@ -206,11 +170,8 @@ app.use(
 )
 
 // ==========================================
-// STAFF DELIVERY-ZONE MANAGEMENT ROUTES
+// STAFF DELIVERY-ZONE MANAGEMENT
 // ==========================================
-
-// Staff can configure delivery zones,
-// manage activation and review audit events.
 
 app.use(
   '/api/admin/delivery-zones',
@@ -218,26 +179,15 @@ app.use(
 )
 
 // ==========================================
-// STAFF INVENTORY MANAGEMENT ROUTES
-// MILESTONE 4.7.1
-// ==========================================
-
-// GET /api/admin/inventory
+// STAFF INVENTORY MANAGEMENT
 //
-// Lists product stock balances.
-
-// GET /api/admin/inventory/:productId/events
-//
-// Retrieves inventory movement history.
-
+// GET   /api/admin/inventory
+// GET   /api/admin/inventory/:productId/events
 // PATCH /api/admin/inventory/:productId
 //
-// Changes a product's stock quantity and
-// records an inventory audit event.
-
-// Authentication, staff role verification,
-// trusted write-request checks and rate
-// limiting are handled by adminInventoryRouter.
+// Stock reconciliation and audit events
+// remain exclusively in this router.
+// ==========================================
 
 app.use(
   '/api/admin/inventory',
@@ -245,10 +195,31 @@ app.use(
 )
 
 // ==========================================
-// UNKNOWN ROUTE HANDLER
+// STAFF PRODUCT MANAGEMENT
+// MILESTONE 4.8.2
+//
+// GET   /api/admin/products
+// GET   /api/admin/products/:productId
+// POST  /api/admin/products
+// PATCH /api/admin/products/:productId
+//
+// Product management cannot directly
+// change stockQuantity.
+//
+// Authentication and write protection
+// are enforced inside adminProductsRouter.
 // ==========================================
 
-// Register this after all valid routes.
+app.use(
+  '/api/admin/products',
+  adminProductsRouter,
+)
+
+// ==========================================
+// UNKNOWN API ENDPOINTS
+// ==========================================
+
+// Keep this handler after all routers.
 
 app.use((_req, res) => {
   res.status(404).json({
@@ -258,7 +229,7 @@ app.use((_req, res) => {
 })
 
 // ==========================================
-// CENTRALIZED ERROR HANDLER
+// CENTRALIZED ERROR HANDLING
 // ==========================================
 
 const errorHandler: ErrorRequestHandler = (
@@ -267,16 +238,12 @@ const errorHandler: ErrorRequestHandler = (
   res,
   next,
 ) => {
-  // Delegate errors if the response
-  // headers have already been sent.
-
   if (res.headersSent) {
     next(error)
     return
   }
 
-  // Express/body-parser errors may contain
-  // an HTTP status code.
+  // Preserve existing HTTP error handling.
 
   const errorStatus =
     error &&
@@ -293,9 +260,9 @@ const errorHandler: ErrorRequestHandler = (
       ? errorStatus
       : 500
 
-  // Log server-side errors without exposing
-  // database details or stack traces
-  // to clients.
+  // Log internal errors on the server,
+  // without exposing implementation
+  // details to clients.
 
   if (statusCode >= 500) {
     console.error(
@@ -319,7 +286,7 @@ const errorHandler: ErrorRequestHandler = (
   })
 }
 
-// Register the centralized error handler last.
+// The error handler must remain last.
 
 app.use(errorHandler)
 

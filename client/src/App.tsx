@@ -1,9 +1,15 @@
 
-import { Route, Routes } from 'react-router-dom'
+import {
+  Route,
+  Routes,
+} from 'react-router-dom'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // APPLICATION ROUTING
+//
+// MILESTONE 4.8.6C
+// STAFF PRODUCT MANAGEMENT
 // ==========================================
 
 // ==========================================
@@ -39,18 +45,29 @@ import AccountPage from './pages/AccountPage'
 import CheckoutPage from './pages/CheckoutPage'
 
 // ==========================================
-// STAFF ADMINISTRATION
+// STAFF ORDER MANAGEMENT
 // ==========================================
 
 import StaffOrdersPage from './pages/StaffOrdersPage'
+
+// ==========================================
+// STAFF DELIVERY-ZONE MANAGEMENT
+// ==========================================
+
 import StaffDeliveryZonesPage from './pages/StaffDeliveryZonesPage'
 
 // ==========================================
 // STAFF INVENTORY MANAGEMENT
-// MILESTONE 4.7.3
 // ==========================================
 
 import StaffInventoryPage from './pages/StaffInventoryPage'
+
+// ==========================================
+// STAFF PRODUCT MANAGEMENT
+// MILESTONE 4.8.6
+// ==========================================
+
+import StaffProductsPage from './pages/StaffProductsPage'
 
 // ==========================================
 // FALLBACK PAGE
@@ -169,6 +186,16 @@ export default function App() {
           <Route
             path="/staff/inventory"
             element={<StaffInventoryPage />}
+          />
+
+          {/* ==================================
+              STAFF PRODUCT MANAGEMENT
+              MILESTONE 4.8.6
+          ================================== */}
+
+          <Route
+            path="/staff/products"
+            element={<StaffProductsPage />}
           />
 
         </Route>

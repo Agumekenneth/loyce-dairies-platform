@@ -61,7 +61,8 @@ export const ModelName = {
   OrderItem: 'OrderItem',
   OrderStatusEvent: 'OrderStatusEvent',
   DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent',
-  InventoryEvent: 'InventoryEvent'
+  InventoryEvent: 'InventoryEvent',
+  ProductAuditEvent: 'ProductAuditEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -243,6 +244,19 @@ export const InventoryEventScalarFieldEnum = {
 } as const
 
 export type InventoryEventScalarFieldEnum = (typeof InventoryEventScalarFieldEnum)[keyof typeof InventoryEventScalarFieldEnum]
+
+
+export const ProductAuditEventScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  changedById: 'changedById',
+  action: 'action',
+  previousValues: 'previousValues',
+  newValues: 'newValues',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductAuditEventScalarFieldEnum = (typeof ProductAuditEventScalarFieldEnum)[keyof typeof ProductAuditEventScalarFieldEnum]
 
 
 export const SortOrder = {

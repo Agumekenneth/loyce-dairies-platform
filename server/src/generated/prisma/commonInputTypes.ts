@@ -440,6 +440,23 @@ export type EnumInventoryActionWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumInventoryActionFilter<$PrismaModel>
 }
 
+export type EnumProductAuditActionFilter<$PrismaModel = never> = {
+  equals?: $Enums.ProductAuditAction | Prisma.EnumProductAuditActionFieldRefInput<$PrismaModel>
+  in?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel> | $Enums.ProductAuditAction
+}
+
+export type EnumProductAuditActionWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ProductAuditAction | Prisma.EnumProductAuditActionFieldRefInput<$PrismaModel>
+  in?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumProductAuditActionWithAggregatesFilter<$PrismaModel> | $Enums.ProductAuditAction
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
+}
+
 export type NestedIntFilter<$PrismaModel = never> = {
   equals?: number | Prisma.IntFieldRefInput<$PrismaModel>
   in?: number[] | Prisma.ListIntFieldRefInput<$PrismaModel>
@@ -823,6 +840,23 @@ export type NestedEnumInventoryActionWithAggregatesFilter<$PrismaModel = never> 
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumInventoryActionFilter<$PrismaModel>
   _max?: Prisma.NestedEnumInventoryActionFilter<$PrismaModel>
+}
+
+export type NestedEnumProductAuditActionFilter<$PrismaModel = never> = {
+  equals?: $Enums.ProductAuditAction | Prisma.EnumProductAuditActionFieldRefInput<$PrismaModel>
+  in?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel> | $Enums.ProductAuditAction
+}
+
+export type NestedEnumProductAuditActionWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ProductAuditAction | Prisma.EnumProductAuditActionFieldRefInput<$PrismaModel>
+  in?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ProductAuditAction[] | Prisma.ListEnumProductAuditActionFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumProductAuditActionWithAggregatesFilter<$PrismaModel> | $Enums.ProductAuditAction
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
 }
 
 

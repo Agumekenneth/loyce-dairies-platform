@@ -96,3 +96,8 @@ export type DeliveryZoneAuditEvent = Prisma.DeliveryZoneAuditEventModel
  * 
  */
 export type InventoryEvent = Prisma.InventoryEventModel
+/**
+ * Model ProductAuditEvent
+ * 
+ */
+export type ProductAuditEvent = Prisma.ProductAuditEventModel

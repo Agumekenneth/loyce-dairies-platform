@@ -84,3 +84,13 @@ export const InventoryAction = {
 } as const
 
 export type InventoryAction = (typeof InventoryAction)[keyof typeof InventoryAction]
+
+
+export const ProductAuditAction = {
+  CREATED: 'CREATED',
+  UPDATED: 'UPDATED',
+  ACTIVATED: 'ACTIVATED',
+  DEACTIVATED: 'DEACTIVATED'
+} as const
+
+export type ProductAuditAction = (typeof ProductAuditAction)[keyof typeof ProductAuditAction]

@@ -407,7 +407,8 @@ export const ModelName = {
   OrderItem: 'OrderItem',
   OrderStatusEvent: 'OrderStatusEvent',
   DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent',
-  InventoryEvent: 'InventoryEvent'
+  InventoryEvent: 'InventoryEvent',
+  ProductAuditEvent: 'ProductAuditEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -423,7 +424,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1241,6 +1242,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ProductAuditEvent: {
+      payload: Prisma.$ProductAuditEventPayload<ExtArgs>
+      fields: Prisma.ProductAuditEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProductAuditEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProductAuditEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>
+        }
+        findFirst: {
+          args: Prisma.ProductAuditEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProductAuditEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>
+        }
+        findMany: {
+          args: Prisma.ProductAuditEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>[]
+        }
+        create: {
+          args: Prisma.ProductAuditEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>
+        }
+        createMany: {
+          args: Prisma.ProductAuditEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProductAuditEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>[]
+        }
+        delete: {
+          args: Prisma.ProductAuditEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>
+        }
+        update: {
+          args: Prisma.ProductAuditEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.ProductAuditEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProductAuditEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProductAuditEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.ProductAuditEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductAuditEventPayload>
+        }
+        aggregate: {
+          args: Prisma.ProductAuditEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProductAuditEvent>
+        }
+        groupBy: {
+          args: Prisma.ProductAuditEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProductAuditEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProductAuditEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProductAuditEventCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1443,6 +1518,19 @@ export const InventoryEventScalarFieldEnum = {
 } as const
 
 export type InventoryEventScalarFieldEnum = (typeof InventoryEventScalarFieldEnum)[keyof typeof InventoryEventScalarFieldEnum]
+
+
+export const ProductAuditEventScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  changedById: 'changedById',
+  action: 'action',
+  previousValues: 'previousValues',
+  newValues: 'newValues',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductAuditEventScalarFieldEnum = (typeof ProductAuditEventScalarFieldEnum)[keyof typeof ProductAuditEventScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1675,6 +1763,20 @@ export type ListEnumInventoryActionFieldRefInput<$PrismaModel> = FieldRefInputTy
 
 
 /**
+ * Reference to a field of type 'ProductAuditAction'
+ */
+export type EnumProductAuditActionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ProductAuditAction'>
+    
+
+
+/**
+ * Reference to a field of type 'ProductAuditAction[]'
+ */
+export type ListEnumProductAuditActionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ProductAuditAction[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -1849,6 +1951,7 @@ export type GlobalOmitConfig = {
   orderStatusEvent?: Prisma.OrderStatusEventOmit
   deliveryZoneAuditEvent?: Prisma.DeliveryZoneAuditEventOmit
   inventoryEvent?: Prisma.InventoryEventOmit
+  productAuditEvent?: Prisma.ProductAuditEventOmit
 }
 
 /* Types for Logging */
