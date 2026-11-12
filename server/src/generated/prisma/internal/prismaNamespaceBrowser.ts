@@ -64,7 +64,8 @@ export const ModelName = {
   InventoryEvent: 'InventoryEvent',
   ProductAuditEvent: 'ProductAuditEvent',
   StaffOrderAlert: 'StaffOrderAlert',
-  StaffOrderAlertRead: 'StaffOrderAlertRead'
+  StaffOrderAlertRead: 'StaffOrderAlertRead',
+  OrderEscalationEvent: 'OrderEscalationEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -277,6 +278,16 @@ export const StaffOrderAlertReadScalarFieldEnum = {
 } as const
 
 export type StaffOrderAlertReadScalarFieldEnum = (typeof StaffOrderAlertReadScalarFieldEnum)[keyof typeof StaffOrderAlertReadScalarFieldEnum]
+
+
+export const OrderEscalationEventScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  level: 'level',
+  createdAt: 'createdAt'
+} as const
+
+export type OrderEscalationEventScalarFieldEnum = (typeof OrderEscalationEventScalarFieldEnum)[keyof typeof OrderEscalationEventScalarFieldEnum]
 
 
 export const SortOrder = {

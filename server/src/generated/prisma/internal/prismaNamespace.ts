@@ -410,7 +410,8 @@ export const ModelName = {
   InventoryEvent: 'InventoryEvent',
   ProductAuditEvent: 'ProductAuditEvent',
   StaffOrderAlert: 'StaffOrderAlert',
-  StaffOrderAlertRead: 'StaffOrderAlertRead'
+  StaffOrderAlertRead: 'StaffOrderAlertRead',
+  OrderEscalationEvent: 'OrderEscalationEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -426,7 +427,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead" | "orderEscalationEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1466,6 +1467,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OrderEscalationEvent: {
+      payload: Prisma.$OrderEscalationEventPayload<ExtArgs>
+      fields: Prisma.OrderEscalationEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OrderEscalationEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OrderEscalationEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>
+        }
+        findFirst: {
+          args: Prisma.OrderEscalationEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OrderEscalationEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>
+        }
+        findMany: {
+          args: Prisma.OrderEscalationEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>[]
+        }
+        create: {
+          args: Prisma.OrderEscalationEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>
+        }
+        createMany: {
+          args: Prisma.OrderEscalationEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OrderEscalationEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>[]
+        }
+        delete: {
+          args: Prisma.OrderEscalationEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>
+        }
+        update: {
+          args: Prisma.OrderEscalationEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.OrderEscalationEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OrderEscalationEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OrderEscalationEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.OrderEscalationEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrderEscalationEventPayload>
+        }
+        aggregate: {
+          args: Prisma.OrderEscalationEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOrderEscalationEvent>
+        }
+        groupBy: {
+          args: Prisma.OrderEscalationEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrderEscalationEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OrderEscalationEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrderEscalationEventCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1699,6 +1774,16 @@ export const StaffOrderAlertReadScalarFieldEnum = {
 } as const
 
 export type StaffOrderAlertReadScalarFieldEnum = (typeof StaffOrderAlertReadScalarFieldEnum)[keyof typeof StaffOrderAlertReadScalarFieldEnum]
+
+
+export const OrderEscalationEventScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  level: 'level',
+  createdAt: 'createdAt'
+} as const
+
+export type OrderEscalationEventScalarFieldEnum = (typeof OrderEscalationEventScalarFieldEnum)[keyof typeof OrderEscalationEventScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1945,6 +2030,20 @@ export type ListEnumProductAuditActionFieldRefInput<$PrismaModel> = FieldRefInpu
 
 
 /**
+ * Reference to a field of type 'OrderEscalationLevel'
+ */
+export type EnumOrderEscalationLevelFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrderEscalationLevel'>
+    
+
+
+/**
+ * Reference to a field of type 'OrderEscalationLevel[]'
+ */
+export type ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrderEscalationLevel[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -2122,6 +2221,7 @@ export type GlobalOmitConfig = {
   productAuditEvent?: Prisma.ProductAuditEventOmit
   staffOrderAlert?: Prisma.StaffOrderAlertOmit
   staffOrderAlertRead?: Prisma.StaffOrderAlertReadOmit
+  orderEscalationEvent?: Prisma.OrderEscalationEventOmit
 }
 
 /* Types for Logging */

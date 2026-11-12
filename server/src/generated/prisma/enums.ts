@@ -67,6 +67,15 @@ export const OrderStatus = {
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
 
+export const OrderEscalationLevel = {
+  REMINDER: 'REMINDER',
+  ESCALATED: 'ESCALATED',
+  CRITICAL: 'CRITICAL'
+} as const
+
+export type OrderEscalationLevel = (typeof OrderEscalationLevel)[keyof typeof OrderEscalationLevel]
+
+
 export const DeliveryZoneAuditAction = {
   CREATED: 'CREATED',
   UPDATED: 'UPDATED',

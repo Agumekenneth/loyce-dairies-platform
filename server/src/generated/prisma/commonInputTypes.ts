@@ -457,6 +457,23 @@ export type EnumProductAuditActionWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
 }
 
+export type EnumOrderEscalationLevelFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrderEscalationLevel | Prisma.EnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  in?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrderEscalationLevelFilter<$PrismaModel> | $Enums.OrderEscalationLevel
+}
+
+export type EnumOrderEscalationLevelWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrderEscalationLevel | Prisma.EnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  in?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrderEscalationLevelWithAggregatesFilter<$PrismaModel> | $Enums.OrderEscalationLevel
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumOrderEscalationLevelFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumOrderEscalationLevelFilter<$PrismaModel>
+}
+
 export type NestedIntFilter<$PrismaModel = never> = {
   equals?: number | Prisma.IntFieldRefInput<$PrismaModel>
   in?: number[] | Prisma.ListIntFieldRefInput<$PrismaModel>
@@ -857,6 +874,23 @@ export type NestedEnumProductAuditActionWithAggregatesFilter<$PrismaModel = neve
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
   _max?: Prisma.NestedEnumProductAuditActionFilter<$PrismaModel>
+}
+
+export type NestedEnumOrderEscalationLevelFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrderEscalationLevel | Prisma.EnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  in?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrderEscalationLevelFilter<$PrismaModel> | $Enums.OrderEscalationLevel
+}
+
+export type NestedEnumOrderEscalationLevelWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrderEscalationLevel | Prisma.EnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  in?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrderEscalationLevel[] | Prisma.ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrderEscalationLevelWithAggregatesFilter<$PrismaModel> | $Enums.OrderEscalationLevel
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumOrderEscalationLevelFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumOrderEscalationLevelFilter<$PrismaModel>
 }
 
 
