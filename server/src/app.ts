@@ -22,8 +22,8 @@ import type {
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
 //
-// MILESTONE 4.13
-// STAFF ORDER NOTIFICATION INTEGRATION
+// MILESTONE 4.16
+// UNATTENDED ORDER MONITORING INTEGRATION
 // ==========================================
 
 // ==========================================
@@ -67,6 +67,13 @@ import adminProductsRouter from './routes/adminProducts.js'
 // ==========================================
 
 import staffNotificationsRouter from './routes/staffNotifications.js'
+
+// ==========================================
+// MILESTONE 4.16
+// UNATTENDED ORDER MONITORING
+// ==========================================
+
+import staffOrderAttentionRouter from './routes/staffOrderAttention.js'
 
 // ==========================================
 // INITIALIZE EXPRESS
@@ -217,6 +224,37 @@ app.use(
 app.use(
   '/api/admin/notifications',
   staffNotificationsRouter,
+)
+
+// ==========================================
+// MILESTONE 4.16
+// UNATTENDED ORDER MONITORING
+// ==========================================
+
+/**
+ * GET /api/admin/order-attention
+ *
+ * Returns:
+ *
+ * - Total pending orders
+ * - Normal attention count
+ * - Reminder attention count
+ * - Escalated attention count
+ * - Critical attention count
+ * - Waiting times for pending orders
+ * - Direct order review paths
+ *
+ * This is a read-only, staff-protected
+ * monitoring endpoint.
+ *
+ * It does not change order status, mark
+ * notifications as read, or initiate
+ * payment or inventory operations.
+ */
+
+app.use(
+  '/api/admin/order-attention',
+  staffOrderAttentionRouter,
 )
 
 // ==========================================

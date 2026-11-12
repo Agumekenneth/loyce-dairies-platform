@@ -8,8 +8,8 @@ import {
 // LOYCE DAIRIES PLATFORM
 // APPLICATION ROUTING
 //
-// MILESTONE 4.8.6C
-// STAFF PRODUCT MANAGEMENT
+// MILESTONE 4.16
+// UNATTENDED ORDER MONITORING INTEGRATION
 // ==========================================
 
 // ==========================================
@@ -51,6 +51,13 @@ import CheckoutPage from './pages/CheckoutPage'
 import StaffOrdersPage from './pages/StaffOrdersPage'
 
 // ==========================================
+// MILESTONE 4.16
+// UNATTENDED ORDER MONITORING
+// ==========================================
+
+import StaffOrderAttentionPanel from './components/staff/StaffOrderAttentionPanel'
+
+// ==========================================
 // STAFF DELIVERY-ZONE MANAGEMENT
 // ==========================================
 
@@ -64,7 +71,6 @@ import StaffInventoryPage from './pages/StaffInventoryPage'
 
 // ==========================================
 // STAFF PRODUCT MANAGEMENT
-// MILESTONE 4.8.6
 // ==========================================
 
 import StaffProductsPage from './pages/StaffProductsPage'
@@ -146,14 +152,14 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
 
-          {/* Customer account */}
+          {/* CUSTOMER ACCOUNT */}
 
           <Route
             path="/account"
             element={<AccountPage />}
           />
 
-          {/* Customer checkout */}
+          {/* CUSTOMER CHECKOUT */}
 
           <Route
             path="/checkout"
@@ -161,12 +167,32 @@ export default function App() {
           />
 
           {/* ==================================
+              MILESTONE 4.16
               STAFF ORDER MANAGEMENT
+              AND UNATTENDED ORDER MONITORING
           ================================== */}
 
           <Route
             path="/staff/orders"
-            element={<StaffOrdersPage />}
+            element={
+              <>
+                {/* Unattended-order dashboard */}
+
+                <section
+                  aria-label="Staff order monitoring"
+                  className="bg-cream px-5 pt-8 lg:px-8"
+                >
+                  <div className="mx-auto max-w-7xl">
+                    <StaffOrderAttentionPanel />
+                  </div>
+                </section>
+
+                {/* Existing order-management
+                    functionality is unchanged. */}
+
+                <StaffOrdersPage />
+              </>
+            }
           />
 
           {/* ==================================
@@ -180,7 +206,6 @@ export default function App() {
 
           {/* ==================================
               STAFF INVENTORY MANAGEMENT
-              MILESTONE 4.7.3
           ================================== */}
 
           <Route
@@ -190,7 +215,6 @@ export default function App() {
 
           {/* ==================================
               STAFF PRODUCT MANAGEMENT
-              MILESTONE 4.8.6
           ================================== */}
 
           <Route

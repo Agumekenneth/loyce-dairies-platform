@@ -279,6 +279,16 @@ enum OrderStatus {
 }
 
 // ==========================================
+// MILESTONE 4.17: ESCALATION LEVELS
+// ==========================================
+
+enum OrderEscalationLevel {
+  REMINDER
+  ESCALATED
+  CRITICAL
+}
+
+// ==========================================
 // DELIVERY ZONES
 // ==========================================
 
@@ -383,6 +393,9 @@ model Order {
 
   // New-order notification
   staffAlert StaffOrderAlert?
+
+  // Persistent unattended-order escalations
+  escalationEvents OrderEscalationEvent[]
 
   // ========================================
   // TIMESTAMPS
@@ -751,4 +764,20 @@ model StaffOrderAlertRead {
 
   @@id([staffId, alertId])
   @@index([alertId])
+}
+
+// ==========================================
+// MILESTONE 4.17: ORDER ESCALATION HISTORY
+// ==========================================
+
+model OrderEscalationEvent {
+  id        String               @id @default(cuid())
+  orderId   String
+  level     OrderEscalationLevel
+  createdAt DateTime             @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, level])
+  @@index([level, createdAt])
 }
