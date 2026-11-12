@@ -22,34 +22,51 @@ import type {
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
 //
-// MILESTONE 4.12I
-// SINGLE-ORIGIN PRODUCTION HOSTING
+// MILESTONE 4.13
+// STAFF ORDER NOTIFICATION INTEGRATION
 // ==========================================
 
-// Public catalogue
+// ==========================================
+// PUBLIC PRODUCT CATALOGUE
+// ==========================================
 
 import catalogRoutes from './routes/catalog.js'
 
-// Authentication
+// ==========================================
+// AUTHENTICATION
+// ==========================================
 
 import authRoutes from './routes/auth.js'
 import sessionRoutes from './routes/sessions.js'
 
-// Email verification and recovery
+// ==========================================
+// EMAIL VERIFICATION AND RECOVERY
+// ==========================================
 
 import emailVerificationRoutes from './routes/emailVerification.js'
 import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
-// Customer orders
+// ==========================================
+// CUSTOMER ORDERS
+// ==========================================
 
 import orderRoutes from './routes/orders.js'
 
-// Staff administration
+// ==========================================
+// STAFF ADMINISTRATION
+// ==========================================
 
 import adminOrdersRouter from './routes/adminOrders.js'
 import adminDeliveryZonesRouter from './routes/adminDeliveryZones.js'
 import adminInventoryRouter from './routes/adminInventory.js'
 import adminProductsRouter from './routes/adminProducts.js'
+
+// ==========================================
+// MILESTONE 4.13
+// STAFF ORDER NOTIFICATIONS
+// ==========================================
+
+import staffNotificationsRouter from './routes/staffNotifications.js'
 
 // ==========================================
 // INITIALIZE EXPRESS
@@ -71,6 +88,7 @@ app.disable('x-powered-by')
  *
  * - Express CORS
  * - Checkout origin protection
+ * - Staff notification write protection
  *
  * Production must explicitly configure it.
  */
@@ -177,6 +195,31 @@ app.use(
 )
 
 // ==========================================
+// MILESTONE 4.13
+// STAFF ORDER NOTIFICATION ROUTES
+// ==========================================
+
+/**
+ * All routes inside staffNotificationsRouter
+ * require an authenticated, active, verified
+ * staff account.
+ *
+ * Registered endpoints:
+ *
+ * GET /api/admin/notifications
+ * GET /api/admin/notifications/unread-count
+ * PATCH /api/admin/notifications/:alertId/read
+ *
+ * Read receipts are maintained separately
+ * for each authorized staff member.
+ */
+
+app.use(
+  '/api/admin/notifications',
+  staffNotificationsRouter,
+)
+
+// ==========================================
 // STAFF DELIVERY ZONES
 // ==========================================
 
@@ -228,7 +271,9 @@ if (isProduction) {
     '../../client/dist',
   )
 
-  // Serve compiled React assets.
+  // ======================================
+  // SERVE COMPILED REACT ASSETS
+  // ======================================
 
   app.use(
     express.static(

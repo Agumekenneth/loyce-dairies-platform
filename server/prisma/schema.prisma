@@ -1,4 +1,3 @@
-
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -161,6 +160,9 @@ model Customer {
   // ========================================
 
   productChanges ProductAuditEvent[] @relation("StaffProductChanges")
+
+  // Staff notification read history
+  staffAlertReads StaffOrderAlertRead[]
 
   // ========================================
   // TIMESTAMPS
@@ -378,6 +380,9 @@ model Order {
   // ========================================
 
   inventoryEvents InventoryEvent[]
+
+  // New-order notification
+  staffAlert StaffOrderAlert?
 
   // ========================================
   // TIMESTAMPS
@@ -709,7 +714,41 @@ model ProductAuditEvent {
 
   // Fetch changes for a specific product.
   @@index([productId, createdAt])
-
   // Fetch changes made by a staff account.
   @@index([changedById, createdAt])
+}
+
+// ==========================================
+// MILESTONE 4.13
+// STAFF ORDER NOTIFICATIONS
+// ==========================================
+
+model StaffOrderAlert {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  reads StaffOrderAlertRead[]
+
+  @@index([createdAt])
+}
+
+// ==========================================
+// STAFF NOTIFICATION READ HISTORY
+// ==========================================
+
+model StaffOrderAlertRead {
+  staffId String
+  alertId String
+
+  readAt DateTime @default(now())
+
+  staff Customer @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  alert StaffOrderAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@id([staffId, alertId])
+  @@index([alertId])
 }

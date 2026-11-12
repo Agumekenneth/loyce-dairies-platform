@@ -24,11 +24,16 @@ import OrderHistory from '../components/orders/OrderHistory'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
-// CUSTOMER ACCOUNT & STAFF WORKSPACE
+// CUSTOMER ACCOUNT AND STAFF WORKSPACE
 //
-// MILESTONE 4.8.6D
-// PRODUCT MANAGEMENT NAVIGATION
+// MILESTONE 4.13
+// CONSOLIDATED STAFF NOTIFICATIONS
 // ==========================================
+
+// Staff notifications are managed by
+// MainLayout instead of AccountPage.
+// This prevents duplicate polling and
+// repeated notification sounds.
 
 export default function AccountPage() {
   const navigate = useNavigate()
@@ -42,9 +47,7 @@ export default function AccountPage() {
   const [logoutError, setLogoutError] =
     useState<string | null>(null)
 
-  // Authentication is handled by
-  // ProtectedRoute.
-
+  // Authentication is handled by ProtectedRoute.
   if (!customer) {
     return null
   }
@@ -60,11 +63,11 @@ export default function AccountPage() {
   const isEmailVerified =
     customer.emailVerifiedAt !== null
 
-  // Staff navigation is shown only for
-  // verified staff accounts.
+  // Staff workspace visibility is determined
+  // by account role and verification status.
   //
-  // The backend independently verifies
-  // authorization for each staff API.
+  // The backend independently validates
+  // authorization for each staff request.
 
   const isStaff =
     customer.role === 'STAFF' &&
@@ -118,6 +121,7 @@ export default function AccountPage() {
           <div className="mt-6 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
 
             <div>
+
               <h1 className="font-display text-4xl leading-tight text-brand sm:text-5xl">
                 Hello,{' '}
                 <span className="italic text-brand-light">
@@ -131,6 +135,7 @@ export default function AccountPage() {
                 manage your account, and continue
                 exploring your dairy favourites.
               </p>
+
             </div>
 
             <Link
@@ -172,15 +177,14 @@ export default function AccountPage() {
               <div className="flex items-center gap-4">
 
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sage text-brand">
-
                   <UserRound
                     size={26}
                     aria-hidden="true"
                   />
-
                 </div>
 
                 <div>
+
                   <h2 className="font-display text-3xl text-brand">
                     Personal information
                   </h2>
@@ -188,13 +192,13 @@ export default function AccountPage() {
                   <p className="mt-2 text-sm text-brand/60">
                     Your registered account details.
                   </p>
-                </div>
 
+                </div>
               </div>
 
               <div className="mt-9 grid gap-6 sm:grid-cols-2">
 
-                {/* Full name */}
+                {/* FULL NAME */}
 
                 <div className="rounded-2xl bg-cream p-5">
 
@@ -209,9 +213,10 @@ export default function AccountPage() {
                   <p className="mt-3 break-words text-sm font-bold text-brand">
                     {customer.fullName}
                   </p>
+
                 </div>
 
-                {/* Email address */}
+                {/* EMAIL ADDRESS */}
 
                 <div className="rounded-2xl bg-cream p-5">
 
@@ -226,9 +231,10 @@ export default function AccountPage() {
                   <p className="mt-3 break-all text-sm font-bold text-brand">
                     {customer.email}
                   </p>
+
                 </div>
 
-                {/* Phone number */}
+                {/* PHONE NUMBER */}
 
                 <div className="rounded-2xl bg-cream p-5">
 
@@ -243,9 +249,10 @@ export default function AccountPage() {
                   <p className="mt-3 text-sm font-bold text-brand">
                     {customer.phone || 'Not provided'}
                   </p>
+
                 </div>
 
-                {/* Email verification */}
+                {/* EMAIL VERIFICATION */}
 
                 <div className="rounded-2xl bg-cream p-5">
 
@@ -290,7 +297,7 @@ export default function AccountPage() {
 
               </div>
 
-              {/* Email verification prompt */}
+              {/* EMAIL VERIFICATION PROMPT */}
 
               {!isEmailVerified && (
                 <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5">
@@ -316,6 +323,7 @@ export default function AccountPage() {
                       aria-hidden="true"
                     />
                   </Link>
+
                 </div>
               )}
 
@@ -329,7 +337,9 @@ export default function AccountPage() {
 
             {/* ==================================
                 STAFF WORKSPACE
-                MILESTONE 4.8.6D
+
+                Notification monitoring is now
+                owned by the shared layout.
             ================================== */}
 
             {isStaff && (
@@ -338,7 +348,7 @@ export default function AccountPage() {
                 className="rounded-[2rem] border border-brand/10 bg-white p-6 sm:p-9"
               >
 
-                {/* Staff heading */}
+                {/* STAFF HEADING */}
 
                 <div className="flex items-start gap-4">
 
@@ -350,6 +360,7 @@ export default function AccountPage() {
                   </div>
 
                   <div>
+
                     <p className="text-xs font-extrabold uppercase tracking-[0.15em] text-brand-light">
                       LOYCE DAIRIES · STAFF
                     </p>
@@ -367,8 +378,8 @@ export default function AccountPage() {
                       inventory, customer orders,
                       and delivery operations.
                     </p>
-                  </div>
 
+                  </div>
                 </div>
 
                 {/* ============================
@@ -579,6 +590,7 @@ export default function AccountPage() {
                 />
 
                 Session active
+
               </div>
 
             </section>
@@ -658,6 +670,7 @@ export default function AccountPage() {
                 {isSubmitting
                   ? 'Signing out...'
                   : 'Sign out'}
+
               </button>
 
             </section>

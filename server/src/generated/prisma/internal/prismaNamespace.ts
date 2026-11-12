@@ -408,7 +408,9 @@ export const ModelName = {
   OrderStatusEvent: 'OrderStatusEvent',
   DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent',
   InventoryEvent: 'InventoryEvent',
-  ProductAuditEvent: 'ProductAuditEvent'
+  ProductAuditEvent: 'ProductAuditEvent',
+  StaffOrderAlert: 'StaffOrderAlert',
+  StaffOrderAlertRead: 'StaffOrderAlertRead'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -424,7 +426,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1316,6 +1318,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    StaffOrderAlert: {
+      payload: Prisma.$StaffOrderAlertPayload<ExtArgs>
+      fields: Prisma.StaffOrderAlertFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StaffOrderAlertFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StaffOrderAlertFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>
+        }
+        findFirst: {
+          args: Prisma.StaffOrderAlertFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StaffOrderAlertFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>
+        }
+        findMany: {
+          args: Prisma.StaffOrderAlertFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>[]
+        }
+        create: {
+          args: Prisma.StaffOrderAlertCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>
+        }
+        createMany: {
+          args: Prisma.StaffOrderAlertCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StaffOrderAlertCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>[]
+        }
+        delete: {
+          args: Prisma.StaffOrderAlertDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>
+        }
+        update: {
+          args: Prisma.StaffOrderAlertUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>
+        }
+        deleteMany: {
+          args: Prisma.StaffOrderAlertDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StaffOrderAlertUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StaffOrderAlertUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>[]
+        }
+        upsert: {
+          args: Prisma.StaffOrderAlertUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertPayload>
+        }
+        aggregate: {
+          args: Prisma.StaffOrderAlertAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStaffOrderAlert>
+        }
+        groupBy: {
+          args: Prisma.StaffOrderAlertGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffOrderAlertGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StaffOrderAlertCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffOrderAlertCountAggregateOutputType> | number
+        }
+      }
+    }
+    StaffOrderAlertRead: {
+      payload: Prisma.$StaffOrderAlertReadPayload<ExtArgs>
+      fields: Prisma.StaffOrderAlertReadFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StaffOrderAlertReadFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StaffOrderAlertReadFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>
+        }
+        findFirst: {
+          args: Prisma.StaffOrderAlertReadFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StaffOrderAlertReadFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>
+        }
+        findMany: {
+          args: Prisma.StaffOrderAlertReadFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>[]
+        }
+        create: {
+          args: Prisma.StaffOrderAlertReadCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>
+        }
+        createMany: {
+          args: Prisma.StaffOrderAlertReadCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StaffOrderAlertReadCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>[]
+        }
+        delete: {
+          args: Prisma.StaffOrderAlertReadDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>
+        }
+        update: {
+          args: Prisma.StaffOrderAlertReadUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>
+        }
+        deleteMany: {
+          args: Prisma.StaffOrderAlertReadDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StaffOrderAlertReadUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StaffOrderAlertReadUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>[]
+        }
+        upsert: {
+          args: Prisma.StaffOrderAlertReadUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffOrderAlertReadPayload>
+        }
+        aggregate: {
+          args: Prisma.StaffOrderAlertReadAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStaffOrderAlertRead>
+        }
+        groupBy: {
+          args: Prisma.StaffOrderAlertReadGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffOrderAlertReadGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StaffOrderAlertReadCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffOrderAlertReadCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1531,6 +1681,24 @@ export const ProductAuditEventScalarFieldEnum = {
 } as const
 
 export type ProductAuditEventScalarFieldEnum = (typeof ProductAuditEventScalarFieldEnum)[keyof typeof ProductAuditEventScalarFieldEnum]
+
+
+export const StaffOrderAlertScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  createdAt: 'createdAt'
+} as const
+
+export type StaffOrderAlertScalarFieldEnum = (typeof StaffOrderAlertScalarFieldEnum)[keyof typeof StaffOrderAlertScalarFieldEnum]
+
+
+export const StaffOrderAlertReadScalarFieldEnum = {
+  staffId: 'staffId',
+  alertId: 'alertId',
+  readAt: 'readAt'
+} as const
+
+export type StaffOrderAlertReadScalarFieldEnum = (typeof StaffOrderAlertReadScalarFieldEnum)[keyof typeof StaffOrderAlertReadScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1952,6 +2120,8 @@ export type GlobalOmitConfig = {
   deliveryZoneAuditEvent?: Prisma.DeliveryZoneAuditEventOmit
   inventoryEvent?: Prisma.InventoryEventOmit
   productAuditEvent?: Prisma.ProductAuditEventOmit
+  staffOrderAlert?: Prisma.StaffOrderAlertOmit
+  staffOrderAlertRead?: Prisma.StaffOrderAlertReadOmit
 }
 
 /* Types for Logging */
