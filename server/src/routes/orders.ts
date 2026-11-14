@@ -8,6 +8,7 @@ import { z } from 'zod'
 
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
+import { getTrustedClientOrigins } from '../lib/trustedOrigins.js'
 
 // LOYCE DAIRIES PLATFORM
 // Customer checkout, inventory and order history
@@ -128,31 +129,9 @@ const requireTrustedCheckoutRequest: RequestHandler = (
   res,
   next,
 ) => {
-  const primaryOrigin = new URL(
-    process.env.CLIENT_URL ??
-      'http://localhost:5173',
-  ).origin
-
-  const allowedOrigins = new Set<string>([
-    primaryOrigin,
-  ])
-
-  // Allow desktop and Android development
-  // origins only when explicitly enabled.
-  //
-  // Production retains its configured
-  // primary origin restriction.
-
-  const isLocalDevelopment =
-    process.env.NODE_ENV !== 'production' &&
-    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
-
-  if (isLocalDevelopment) {
-    allowedOrigins.add('http://localhost:5173')
-    allowedOrigins.add('http://127.0.0.1')
-    allowedOrigins.add('https://localhost')
-  }
-
+  // Consistent CORS and checkout origin policy.
+  // Session authentication is validated separately.
+  const allowedOrigins = getTrustedClientOrigins()
   const origin = req.get('Origin')
 
   if (
