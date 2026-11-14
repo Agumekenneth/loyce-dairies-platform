@@ -29,8 +29,8 @@ import {
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
-// MILESTONE 4.14
-// STAFF NOTIFICATIONS AND DIRECT ORDER LINKS
+// STAFF NEW-ORDER NOTIFICATION CENTER
+// RESTAURANT-STYLE AUDIBLE ALERT
 // ==========================================
 
 type StaffNotificationCenterProps = {
@@ -39,6 +39,9 @@ type StaffNotificationCenterProps = {
 
 const POLL_INTERVAL_MS = 10_000
 const MAX_VISIBLE_NOTIFICATIONS = 25
+
+const NEW_ORDER_SOUND_URL =
+  `${import.meta.env.BASE_URL}sounds/loyce_dairies_new_order_chime.wav`
 
 // ==========================================
 // DISPLAY HELPERS
@@ -65,41 +68,19 @@ function getErrorMessage(error: unknown): string {
 }
 
 // ==========================================
-// AUDIBLE NEW-ORDER ALERT
+// AUDIBLE NEW-ORDER CHIME
 // ==========================================
 
-function playAlertTone(context: AudioContext): void {
-  if (context.state !== 'running') {
-    return
-  }
+function playOrderChime(
+  audio: HTMLAudioElement,
+): Promise<void> {
+  // Restart the sound from the beginning so
+  // separate arrivals do not stack playback.
+  audio.pause()
+  audio.currentTime = 0
+  audio.volume = 1
 
-  const now = context.currentTime
-
-  for (let index = 0; index < 2; index++) {
-    const start = now + index * 0.2
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-
-    oscillator.type = 'sine'
-    oscillator.frequency.value =
-      index === 0 ? 880 : 660
-
-    gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(
-      0.12,
-      start + 0.02,
-    )
-    gain.gain.exponentialRampToValueAtTime(
-      0.0001,
-      start + 0.16,
-    )
-
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-
-    oscillator.start(start)
-    oscillator.stop(start + 0.17)
-  }
+  return audio.play()
 }
 
 // ==========================================
@@ -110,8 +91,6 @@ export default function StaffNotificationCenter({
   mode = 'inline',
 }: StaffNotificationCenterProps) {
   const isFloating = mode === 'floating'
-
-  // Notification data
 
   const [notifications, setNotifications] =
     useState<StaffNotification[]>([])
@@ -128,17 +107,19 @@ export default function StaffNotificationCenter({
     useState<string | null>(null)
 
   // Interface state
-
   const [expanded, setExpanded] = useState(true)
   const [panelOpen, setPanelOpen] = useState(false)
-  const [soundEnabled, setSoundEnabled] = useState(false)
+
+  const [soundEnabled, setSoundEnabled] =
+    useState(false)
 
   const [markingId, setMarkingId] =
     useState<string | null>(null)
 
   // Persistent references
-
-  const audioRef = useRef<AudioContext | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(
+    null,
+  )
 
   const knownIdsRef = useRef<Set<string>>(
     new Set(),
@@ -151,6 +132,38 @@ export default function StaffNotificationCenter({
     useRef<AbortController | null>(null)
 
   const soundEnabledRef = useRef(false)
+
+  // ========================================
+  // PLAY AN ARRIVING ORDER ALERT
+  // ========================================
+
+  const playNewOrderAlert = useCallback(() => {
+    if (
+      !soundEnabledRef.current ||
+      !audioRef.current
+    ) {
+      return
+    }
+
+    void playOrderChime(
+      audioRef.current,
+    ).catch(() => {
+      // If Android suspends the audio
+      // session, require the staff member
+      // to activate it again manually.
+
+      if (!soundEnabledRef.current) {
+        return
+      }
+
+      soundEnabledRef.current = false
+      setSoundEnabled(false)
+
+      setError(
+        'Notification audio was blocked. Tap Enable alert sound to reactivate it.',
+      )
+    })
+  }, [])
 
   // ========================================
   // FETCH NOTIFICATIONS
@@ -173,8 +186,8 @@ export default function StaffNotificationCenter({
           return
         }
 
-        // Do not play sounds for historical
-        // notifications on initial loading.
+        // Never replay historical notifications
+        // when the component first loads.
 
         if (initializedRef.current) {
           const newAlerts = page.notifications.filter(
@@ -191,12 +204,7 @@ export default function StaffNotificationCenter({
               `New order received: ${newest.order.orderNumber}`,
             )
 
-            if (
-              soundEnabledRef.current &&
-              audioRef.current
-            ) {
-              playAlertTone(audioRef.current)
-            }
+            playNewOrderAlert()
           }
         }
 
@@ -212,7 +220,9 @@ export default function StaffNotificationCenter({
         setUnreadCount(page.unreadCount)
         setError(null)
       } catch (caughtError: unknown) {
-        if (signal.aborted) return
+        if (signal.aborted) {
+          return
+        }
 
         if (version === requestVersionRef.current) {
           setError(getErrorMessage(caughtError))
@@ -226,11 +236,11 @@ export default function StaffNotificationCenter({
         }
       }
     },
-    [],
+    [playNewOrderAlert],
   )
 
   // ========================================
-  // PERSISTENT POLLING
+  // NOTIFICATION POLLING
   // ========================================
 
   useEffect(() => {
@@ -242,13 +252,17 @@ export default function StaffNotificationCenter({
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        void refreshNotifications(controller.signal)
+        void refreshNotifications(
+          controller.signal,
+        )
       }
     }, POLL_INTERVAL_MS)
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        void refreshNotifications(controller.signal)
+        void refreshNotifications(
+          controller.signal,
+        )
       }
     }
 
@@ -271,16 +285,19 @@ export default function StaffNotificationCenter({
   }, [refreshNotifications])
 
   // ========================================
-  // CLEAN UP AUDIO
+  // RELEASE AUDIO ON UNMOUNT
   // ========================================
 
   useEffect(() => {
     return () => {
       const audio = audioRef.current
       audioRef.current = null
+      soundEnabledRef.current = false
 
-      if (audio && audio.state !== 'closed') {
-        void audio.close()
+      if (audio) {
+        audio.pause()
+        audio.removeAttribute('src')
+        audio.load()
       }
     }
   }, [])
@@ -293,34 +310,46 @@ export default function StaffNotificationCenter({
     if (soundEnabledRef.current) {
       soundEnabledRef.current = false
       setSoundEnabled(false)
+
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
+
       return
     }
 
     try {
       let audio = audioRef.current
 
-      if (!audio || audio.state === 'closed') {
-        audio = new AudioContext()
+      if (!audio) {
+        audio = new Audio(
+          NEW_ORDER_SOUND_URL,
+        )
+
+        audio.preload = 'auto'
+        audio.volume = 1
+
         audioRef.current = audio
       }
 
-      await audio.resume()
+      // This playback starts directly from
+      // the staff member's button press.
+      // Android WebView may otherwise block
+      // audio without user interaction.
 
-      if (audio.state !== 'running') {
-        throw new Error(
-          'Your browser has not enabled notification audio.',
-        )
-      }
+      await playOrderChime(audio)
 
       soundEnabledRef.current = true
       setSoundEnabled(true)
       setError(null)
-
-      playAlertTone(audio)
-    } catch (caughtError: unknown) {
+    } catch {
       soundEnabledRef.current = false
       setSoundEnabled(false)
-      setError(getErrorMessage(caughtError))
+
+      setError(
+        'Unable to play the order chime. Check your media volume and confirm the sound file is installed.',
+      )
     }
   }
 
@@ -329,7 +358,8 @@ export default function StaffNotificationCenter({
   // ========================================
 
   const handleRefresh = () => {
-    const signal = controllerRef.current?.signal
+    const signal =
+      controllerRef.current?.signal
 
     if (!signal || signal.aborted) {
       return
@@ -342,18 +372,25 @@ export default function StaffNotificationCenter({
   // MARK NOTIFICATION AS READ
   // ========================================
 
-  const handleMarkRead = async (alertId: string) => {
-    if (markingId !== null) return
+  const handleMarkRead = async (
+    alertId: string,
+  ) => {
+    if (markingId !== null) {
+      return
+    }
 
     setMarkingId(alertId)
     setError(null)
 
     try {
       const result =
-        await markStaffNotificationRead(alertId)
+        await markStaffNotificationRead(
+          alertId,
+        )
 
-      // Prevent stale polling data from
-      // overwriting the updated read status.
+      // Prevent a stale polling response
+      // from overwriting the updated
+      // notification read status.
 
       requestVersionRef.current += 1
 
@@ -371,7 +408,9 @@ export default function StaffNotificationCenter({
 
       setUnreadCount(result.unreadCount)
     } catch (caughtError: unknown) {
-      setError(getErrorMessage(caughtError))
+      setError(
+        getErrorMessage(caughtError),
+      )
     } finally {
       setMarkingId(null)
     }
@@ -401,7 +440,6 @@ export default function StaffNotificationCenter({
           : 'w-full'
       }
     >
-
       {/* FLOATING NOTIFICATION BELL */}
 
       {isFloating && (
@@ -419,7 +457,10 @@ export default function StaffNotificationCenter({
           aria-controls="loyce-staff-notifications"
           className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-xl transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
-          <BellRing size={25} aria-hidden="true" />
+          <BellRing
+            size={25}
+            aria-hidden="true"
+          />
 
           {unreadCount > 0 && (
             <span
@@ -432,30 +473,32 @@ export default function StaffNotificationCenter({
         </button>
       )}
 
-      {/* FLOATING NEW-ORDER BANNER */}
+      {/* FLOATING NEW ORDER BANNER */}
 
-      {isFloating && latestArrival && !panelOpen && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="pointer-events-auto w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-lg"
-        >
-          <p className="text-sm font-bold text-amber-900">
-            {latestArrival}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => {
-              setPanelOpen(true)
-              setLatestArrival(null)
-            }}
-            className="mt-2 text-xs font-bold text-amber-800 underline"
+      {isFloating &&
+        latestArrival &&
+        !panelOpen && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-auto w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-lg"
           >
-            View notification
-          </button>
-        </div>
-      )}
+            <p className="text-sm font-bold text-amber-900">
+              {latestArrival}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPanelOpen(true)
+                setLatestArrival(null)
+              }}
+              className="mt-2 text-xs font-bold text-amber-800 underline"
+            >
+              View notification
+            </button>
+          </div>
+        )}
 
       {/* NOTIFICATION PANEL */}
 
@@ -473,12 +516,10 @@ export default function StaffNotificationCenter({
               : 'rounded-[2rem] border border-brand/10 bg-white p-6 sm:p-8'
           }
         >
-
           {/* PANEL HEADER */}
 
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-
               <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sage text-brand">
                 <BellRing
                   size={24}
@@ -486,7 +527,10 @@ export default function StaffNotificationCenter({
                 />
 
                 {unreadCount > 0 && (
-                  <span className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">
+                  <span
+                    className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white"
+                    aria-hidden="true"
+                  >
                     {badgeText}
                   </span>
                 )}
@@ -523,33 +567,48 @@ export default function StaffNotificationCenter({
             {isFloating ? (
               <button
                 type="button"
-                onClick={() => setPanelOpen(false)}
+                onClick={() =>
+                  setPanelOpen(false)
+                }
                 aria-label="Close notifications"
                 className="rounded-full p-2 text-brand hover:bg-sage"
               >
-                <X size={20} aria-hidden="true" />
+                <X
+                  size={20}
+                  aria-hidden="true"
+                />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => {
-                  setExpanded((value) => !value)
+                  setExpanded(
+                    (value) => !value,
+                  )
                 }}
                 aria-expanded={expanded}
                 className="inline-flex items-center gap-2 rounded-full border border-brand/15 px-4 py-2 text-sm font-bold text-brand hover:bg-sage"
               >
                 {expanded ? (
-                  <ChevronUp size={16} aria-hidden="true" />
+                  <ChevronUp
+                    size={16}
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <ChevronDown size={16} aria-hidden="true" />
+                  <ChevronDown
+                    size={16}
+                    aria-hidden="true"
+                  />
                 )}
 
-                {expanded ? 'Collapse' : 'View alerts'}
+                {expanded
+                  ? 'Collapse'
+                  : 'View alerts'}
               </button>
             )}
           </div>
 
-          {/* NEW-ORDER MESSAGE */}
+          {/* NEW ORDER MESSAGE */}
 
           {latestArrival && (
             <div
@@ -571,7 +630,6 @@ export default function StaffNotificationCenter({
 
           {showList && (
             <div className="mt-7">
-
               {/* CONTROLS */}
 
               <div className="flex flex-wrap items-center gap-3">
@@ -580,12 +638,19 @@ export default function StaffNotificationCenter({
                   onClick={() => {
                     void toggleSound()
                   }}
+                  aria-pressed={soundEnabled}
                   className="inline-flex items-center gap-2 rounded-full border border-brand/15 px-4 py-2 text-xs font-bold text-brand hover:bg-sage"
                 >
                   {soundEnabled ? (
-                    <Volume2 size={16} aria-hidden="true" />
+                    <Volume2
+                      size={16}
+                      aria-hidden="true"
+                    />
                   ) : (
-                    <VolumeX size={16} aria-hidden="true" />
+                    <VolumeX
+                      size={16}
+                      aria-hidden="true"
+                    />
                   )}
 
                   {soundEnabled
@@ -598,7 +663,10 @@ export default function StaffNotificationCenter({
                   onClick={handleRefresh}
                   className="inline-flex items-center gap-2 rounded-full border border-brand/15 px-4 py-2 text-xs font-bold text-brand hover:bg-sage"
                 >
-                  <RefreshCw size={16} aria-hidden="true" />
+                  <RefreshCw
+                    size={16}
+                    aria-hidden="true"
+                  />
                   Refresh
                 </button>
 
@@ -619,6 +687,7 @@ export default function StaffNotificationCenter({
                     className="shrink-0"
                     aria-hidden="true"
                   />
+
                   <p>{error}</p>
                 </div>
               )}
@@ -635,6 +704,7 @@ export default function StaffNotificationCenter({
                     className="animate-spin"
                     aria-hidden="true"
                   />
+
                   Loading notifications...
                 </div>
               )}
@@ -656,7 +726,8 @@ export default function StaffNotificationCenter({
                     </p>
 
                     <p className="mt-2 text-sm text-brand/60">
-                      New customer orders will appear here.
+                      New customer orders will
+                      appear here.
                     </p>
                   </div>
                 )}
@@ -664,99 +735,107 @@ export default function StaffNotificationCenter({
               {/* NOTIFICATION HISTORY */}
 
               <div className="mt-6 space-y-3">
-                {notifications.map((notification) => (
-                  <article
-                    key={notification.id}
-                    className={`rounded-2xl border p-5 ${
-                      notification.isRead
-                        ? 'border-brand/10 bg-white'
-                        : 'border-brand/20 bg-sage/50'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-bold text-brand">
-                          {notification.title}
-                        </p>
+                {notifications.map(
+                  (notification) => (
+                    <article
+                      key={notification.id}
+                      className={`rounded-2xl border p-5 ${
+                        notification.isRead
+                          ? 'border-brand/10 bg-white'
+                          : 'border-brand/20 bg-sage/50'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-bold text-brand">
+                            {notification.title}
+                          </p>
 
-                        <p className="mt-2 break-all text-sm text-brand/75">
-                          {notification.order.orderNumber}
-                        </p>
+                          <p className="mt-2 break-all text-sm text-brand/75">
+                            {notification.order.orderNumber}
+                          </p>
 
-                        <p className="mt-1 text-xs text-brand/55">
-                          {formatDate(notification.createdAt)}
-                        </p>
+                          <p className="mt-1 text-xs text-brand/55">
+                            {formatDate(
+                              notification.createdAt,
+                            )}
+                          </p>
+                        </div>
+
+                        {!notification.isRead && (
+                          <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white">
+                            Unread
+                          </span>
+                        )}
                       </div>
 
-                      {!notification.isRead && (
-                        <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white">
-                          Unread
-                        </span>
-                      )}
-                    </div>
+                      <p className="mt-4 text-sm text-brand/70">
+                        {
+                          notification.order
+                            .recipientName
+                        }
+                        {' · '}
+                        UGX{' '}
+                        {notification.order.totalUgx.toLocaleString(
+                          'en-UG',
+                        )}
+                      </p>
 
-                    <p className="mt-4 text-sm text-brand/70">
-                      {notification.order.recipientName}
-                      {' · '}
-                      UGX{' '}
-                      {notification.order.totalUgx.toLocaleString(
-                        'en-UG',
-                      )}
-                    </p>
+                      <p className="mt-2 text-xs text-brand/55">
+                        Status:{' '}
+                        {notification.order.status.replaceAll(
+                          '_',
+                          ' ',
+                        )}
+                      </p>
 
-                    <p className="mt-2 text-xs text-brand/55">
-                      Status:{' '}
-                      {notification.order.status.replaceAll(
-                        '_',
-                        ' ',
-                      )}
-                    </p>
+                      <div className="mt-5 flex flex-wrap gap-3">
+                        {/* DIRECT ORDER NAVIGATION */}
 
-                    <div className="mt-5 flex flex-wrap gap-3">
-
-                      {/* ==================================
-                          MILESTONE 4.14
-                          DIRECT ORDER NAVIGATION
-                      ================================== */}
-
-                      <Link
-                        to={`/staff/orders?orderId=${encodeURIComponent(
-                          notification.orderId,
-                        )}`}
-                        onClick={() => {
-                          if (isFloating) {
-                            setPanelOpen(false)
-                          }
-                        }}
-                        className="inline-flex items-center rounded-full bg-brand px-4 py-2 text-xs font-bold text-white hover:bg-brand-light"
-                      >
-                        Review orders
-                      </Link>
-
-                      {/* MARK AS READ */}
-
-                      {!notification.isRead && (
-                        <button
-                          type="button"
-                          disabled={markingId !== null}
+                        <Link
+                          to={`/staff/orders?orderId=${encodeURIComponent(
+                            notification.orderId,
+                          )}`}
                           onClick={() => {
-                            void handleMarkRead(notification.id)
+                            if (isFloating) {
+                              setPanelOpen(false)
+                            }
                           }}
-                          className="inline-flex items-center gap-2 rounded-full border border-brand/20 px-4 py-2 text-xs font-bold text-brand hover:bg-sage disabled:opacity-50"
+                          className="inline-flex items-center rounded-full bg-brand px-4 py-2 text-xs font-bold text-white hover:bg-brand-light"
                         >
-                          <CheckCheck
-                            size={15}
-                            aria-hidden="true"
-                          />
+                          Review orders
+                        </Link>
 
-                          {markingId === notification.id
-                            ? 'Saving...'
-                            : 'Mark as read'}
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
+                        {/* MARK AS READ */}
+
+                        {!notification.isRead && (
+                          <button
+                            type="button"
+                            disabled={
+                              markingId !== null
+                            }
+                            onClick={() => {
+                              void handleMarkRead(
+                                notification.id,
+                              )
+                            }}
+                            className="inline-flex items-center gap-2 rounded-full border border-brand/20 px-4 py-2 text-xs font-bold text-brand hover:bg-sage disabled:opacity-50"
+                          >
+                            <CheckCheck
+                              size={15}
+                              aria-hidden="true"
+                            />
+
+                            {markingId ===
+                            notification.id
+                              ? 'Saving...'
+                              : 'Mark as read'}
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ),
+                )}
               </div>
 
               {notifications.length >=
