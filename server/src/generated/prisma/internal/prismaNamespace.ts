@@ -412,7 +412,8 @@ export const ModelName = {
   StaffOrderAlert: 'StaffOrderAlert',
   StaffOrderAlertRead: 'StaffOrderAlertRead',
   OrderEscalationEvent: 'OrderEscalationEvent',
-  StaffPushDevice: 'StaffPushDevice'
+  StaffPushDevice: 'StaffPushDevice',
+  StaffPushDeliveryJob: 'StaffPushDeliveryJob'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -428,7 +429,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead" | "orderEscalationEvent" | "staffPushDevice"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead" | "orderEscalationEvent" | "staffPushDevice" | "staffPushDeliveryJob"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1616,6 +1617,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    StaffPushDeliveryJob: {
+      payload: Prisma.$StaffPushDeliveryJobPayload<ExtArgs>
+      fields: Prisma.StaffPushDeliveryJobFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StaffPushDeliveryJobFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StaffPushDeliveryJobFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>
+        }
+        findFirst: {
+          args: Prisma.StaffPushDeliveryJobFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StaffPushDeliveryJobFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>
+        }
+        findMany: {
+          args: Prisma.StaffPushDeliveryJobFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>[]
+        }
+        create: {
+          args: Prisma.StaffPushDeliveryJobCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>
+        }
+        createMany: {
+          args: Prisma.StaffPushDeliveryJobCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StaffPushDeliveryJobCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>[]
+        }
+        delete: {
+          args: Prisma.StaffPushDeliveryJobDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>
+        }
+        update: {
+          args: Prisma.StaffPushDeliveryJobUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>
+        }
+        deleteMany: {
+          args: Prisma.StaffPushDeliveryJobDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StaffPushDeliveryJobUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StaffPushDeliveryJobUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>[]
+        }
+        upsert: {
+          args: Prisma.StaffPushDeliveryJobUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDeliveryJobPayload>
+        }
+        aggregate: {
+          args: Prisma.StaffPushDeliveryJobAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStaffPushDeliveryJob>
+        }
+        groupBy: {
+          args: Prisma.StaffPushDeliveryJobGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffPushDeliveryJobGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StaffPushDeliveryJobCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffPushDeliveryJobCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1874,6 +1949,23 @@ export const StaffPushDeviceScalarFieldEnum = {
 } as const
 
 export type StaffPushDeviceScalarFieldEnum = (typeof StaffPushDeviceScalarFieldEnum)[keyof typeof StaffPushDeviceScalarFieldEnum]
+
+
+export const StaffPushDeliveryJobScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  deviceId: 'deviceId',
+  status: 'status',
+  attempts: 'attempts',
+  nextAttemptAt: 'nextAttemptAt',
+  lockedUntil: 'lockedUntil',
+  lastErrorCode: 'lastErrorCode',
+  sentAt: 'sentAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type StaffPushDeliveryJobScalarFieldEnum = (typeof StaffPushDeliveryJobScalarFieldEnum)[keyof typeof StaffPushDeliveryJobScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2148,6 +2240,20 @@ export type ListEnumPushPlatformFieldRefInput<$PrismaModel> = FieldRefInputType<
 
 
 /**
+ * Reference to a field of type 'StaffPushDeliveryStatus'
+ */
+export type EnumStaffPushDeliveryStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'StaffPushDeliveryStatus'>
+
+
+
+/**
+ * Reference to a field of type 'StaffPushDeliveryStatus[]'
+ */
+export type ListEnumStaffPushDeliveryStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'StaffPushDeliveryStatus[]'>
+
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -2327,6 +2433,7 @@ export type GlobalOmitConfig = {
   staffOrderAlertRead?: Prisma.StaffOrderAlertReadOmit
   orderEscalationEvent?: Prisma.OrderEscalationEventOmit
   staffPushDevice?: Prisma.StaffPushDeviceOmit
+  staffPushDeliveryJob?: Prisma.StaffPushDeliveryJobOmit
 }
 
 /* Types for Logging */

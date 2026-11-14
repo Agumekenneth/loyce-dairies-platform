@@ -400,6 +400,9 @@ model Order {
   // Persistent unattended-order escalations
   escalationEvents OrderEscalationEvent[]
 
+  // Persistent Firebase delivery jobs
+  pushDeliveryJobs StaffPushDeliveryJob[]
+
   // ========================================
   // TIMESTAMPS
   // ========================================
@@ -815,6 +818,71 @@ model StaffPushDevice {
 
   staff Customer @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
+  // Delivery history for this device
+  deliveryJobs StaffPushDeliveryJob[]
+
   @@index([staffId, isActive])
   @@index([lastSeenAt])
+}
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// PERSISTENT FCM DELIVERY QUEUE
+// ==========================================
+
+enum StaffPushDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+// ==========================================
+// ONE DELIVERY JOB PER ORDER AND DEVICE
+// ==========================================
+
+model StaffPushDeliveryJob {
+  id String @id @default(cuid())
+
+  // Associated customer order
+  orderId String
+
+  // Destination staff device
+  deviceId String
+
+  // Delivery lifecycle
+  status StaffPushDeliveryStatus @default(PENDING)
+
+  // Number of delivery attempts
+  attempts Int @default(0)
+
+  // Earliest permitted retry time
+  nextAttemptAt DateTime @default(now())
+
+  // Processing lease for crash recovery
+  lockedUntil DateTime?
+
+  // Sanitized FCM failure code only
+  lastErrorCode String? @db.VarChar(120)
+
+  // Firebase acceptance timestamp
+  sentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  device StaffPushDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  // Prevent duplicate queue jobs for
+  // the same order and staff device.
+  @@unique([orderId, deviceId])
+  // Efficient pending/retry lookup
+  @@index([status, nextAttemptAt])
+  // Recovery of expired processing leases
+  @@index([status, lockedUntil])
+  // Device-level delivery history
+  @@index([deviceId, status])
 }

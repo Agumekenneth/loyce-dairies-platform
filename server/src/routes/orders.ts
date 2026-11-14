@@ -625,6 +625,62 @@ router.post(
             },
           })
 
+          // ==================================
+          // PERSISTENT FIREBASE DELIVERY QUEUE
+          // ==================================
+          // Queue jobs are saved in the same
+          // PostgreSQL transaction as the order.
+          //
+          // Do not make network calls to Firebase
+          // inside the database transaction.
+          //
+          // Queue mode remains disabled until
+          // the background worker is activated.
+
+          if (process.env.LOYCE_FCM_QUEUE_ENABLED === '1') {
+            const freshSince = new Date(
+              Date.now() - 30 * 24 * 60 * 60 * 1000,
+            )
+
+            const eligibleDevices =
+              await tx.staffPushDevice.findMany({
+                where: {
+                  isActive: true,
+                  revokedAt: null,
+                  platform: 'ANDROID',
+
+                  lastSeenAt: {
+                    gte: freshSince,
+                  },
+
+                  staff: {
+                    role: 'STAFF',
+                    isActive: true,
+
+                    emailVerifiedAt: {
+                      not: null,
+                    },
+                  },
+                },
+
+                select: {
+                  id: true,
+                },
+              })
+
+            if (eligibleDevices.length > 0) {
+              await tx.staffPushDeliveryJob.createMany({
+                data: eligibleDevices.map((device) => ({
+                  orderId: savedOrder.id,
+                  deviceId: device.id,
+                  status: 'PENDING' as const,
+                })),
+
+                skipDuplicates: true,
+              })
+            }
+          }
+
           return savedOrder
         },
       )
@@ -636,7 +692,10 @@ router.post(
       // Firebase failure must not cancel
       // an otherwise successful checkout.
 
-      if (process.env.LOYCE_FCM_ORDER_PUSH_ENABLED === '1') {
+      if (
+        process.env.LOYCE_FCM_ORDER_PUSH_ENABLED === '1' &&
+        process.env.LOYCE_FCM_QUEUE_ENABLED !== '1'
+      ) {
         void sendStaffNewOrderPush(order.id)
           .then((result) => {
             console.info(

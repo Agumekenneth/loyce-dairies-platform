@@ -121,3 +121,8 @@ export type OrderEscalationEvent = Prisma.OrderEscalationEventModel
  * 
  */
 export type StaffPushDevice = Prisma.StaffPushDeviceModel
+/**
+ * Model StaffPushDeliveryJob
+ *
+ */
+export type StaffPushDeliveryJob = Prisma.StaffPushDeliveryJobModel

@@ -66,7 +66,8 @@ export const ModelName = {
   StaffOrderAlert: 'StaffOrderAlert',
   StaffOrderAlertRead: 'StaffOrderAlertRead',
   OrderEscalationEvent: 'OrderEscalationEvent',
-  StaffPushDevice: 'StaffPushDevice'
+  StaffPushDevice: 'StaffPushDevice',
+  StaffPushDeliveryJob: 'StaffPushDeliveryJob'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -304,6 +305,23 @@ export const StaffPushDeviceScalarFieldEnum = {
 } as const
 
 export type StaffPushDeviceScalarFieldEnum = (typeof StaffPushDeviceScalarFieldEnum)[keyof typeof StaffPushDeviceScalarFieldEnum]
+
+
+export const StaffPushDeliveryJobScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  deviceId: 'deviceId',
+  status: 'status',
+  attempts: 'attempts',
+  nextAttemptAt: 'nextAttemptAt',
+  lockedUntil: 'lockedUntil',
+  lastErrorCode: 'lastErrorCode',
+  sentAt: 'sentAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type StaffPushDeliveryJobScalarFieldEnum = (typeof StaffPushDeliveryJobScalarFieldEnum)[keyof typeof StaffPushDeliveryJobScalarFieldEnum]
 
 
 export const SortOrder = {

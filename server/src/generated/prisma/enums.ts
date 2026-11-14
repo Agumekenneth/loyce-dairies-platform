@@ -111,3 +111,14 @@ export const PushPlatform = {
 } as const
 
 export type PushPlatform = (typeof PushPlatform)[keyof typeof PushPlatform]
+
+
+export const StaffPushDeliveryStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED'
+} as const
+
+export type StaffPushDeliveryStatus = (typeof StaffPushDeliveryStatus)[keyof typeof StaffPushDeliveryStatus]
