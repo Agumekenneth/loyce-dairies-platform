@@ -56,6 +56,7 @@ import StaffOrdersPage from './pages/StaffOrdersPage'
 // ==========================================
 
 import StaffOrderAttentionPanel from './components/staff/StaffOrderAttentionPanel'
+import StaffPushQueueHealthPanel from './components/staff/StaffPushQueueHealthPanel'
 
 // ==========================================
 // STAFF DELIVERY-ZONE MANAGEMENT
@@ -184,6 +185,13 @@ export default function App() {
                 >
                   <div className="mx-auto max-w-7xl">
                     <StaffOrderAttentionPanel />
+
+                    {/* Firebase notification
+                        delivery monitoring */}
+
+                    <div className="mt-6">
+                      <StaffPushQueueHealthPanel />
+                    </div>
                   </div>
                 </section>
 
