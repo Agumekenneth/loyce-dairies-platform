@@ -1,3 +1,4 @@
+import { apiFetch } from './apiClient'
 
 import type {
   FulfillmentMethod,
@@ -8,11 +9,6 @@ import type {
 // MILESTONE 4.16
 // STAFF ORDER ATTENTION API
 // ==========================================
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
 
 // ==========================================
 // ATTENTION LEVELS
@@ -142,8 +138,8 @@ export async function getStaffOrderAttention(
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/admin/order-attention?${params.toString()}`,
+    response = await apiFetch(
+      `/admin/order-attention?${params.toString()}`,
       {
         method: 'GET',
         credentials: 'include',
