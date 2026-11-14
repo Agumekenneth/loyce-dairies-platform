@@ -9,6 +9,10 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 
 import {
+  getTrustedClientOrigins,
+} from '../lib/trustedOrigins.js'
+
+import {
   createSession,
   createMobileSession,
   getCurrentSession,
@@ -125,11 +129,23 @@ const requireNativeOrigin: RequestHandler = (
   res,
   next,
 ) => {
+  // Keep mobile credential endpoints inactive
+  // until native access is explicitly enabled.
+  if (process.env.LOYCE_NATIVE_MOBILE_ENABLED !== '1') {
+    res.status(404).json({
+      success: false,
+      message: 'Endpoint not found.',
+    })
+    return
+  }
+
   const origin = req.get('Origin')
+  const trustedOrigins = getTrustedClientOrigins()
 
   if (
     !origin ||
-    !nativeOrigins.has(origin)
+    !nativeOrigins.has(origin) ||
+    !trustedOrigins.has(origin)
   ) {
     res.status(403).json({
       success: false,
