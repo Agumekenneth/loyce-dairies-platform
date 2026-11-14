@@ -10,69 +10,40 @@ import {
   resolve,
 } from 'node:path'
 
-import {
-  fileURLToPath,
-} from 'node:url'
-
-import type {
-  ErrorRequestHandler,
-} from 'express'
+import { fileURLToPath } from 'node:url'
+import type { ErrorRequestHandler } from 'express'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
-//
-// MILESTONE 4.16
-// UNATTENDED ORDER MONITORING INTEGRATION
+// MULTI-DEVICE LOCAL DEVELOPMENT
 // ==========================================
 
-// ==========================================
-// PUBLIC PRODUCT CATALOGUE
-// ==========================================
-
+// Public product catalogue
 import catalogRoutes from './routes/catalog.js'
 
-// ==========================================
-// AUTHENTICATION
-// ==========================================
-
+// Customer authentication
 import authRoutes from './routes/auth.js'
 import sessionRoutes from './routes/sessions.js'
 
-// ==========================================
-// EMAIL VERIFICATION AND RECOVERY
-// ==========================================
-
+// Email verification and recovery
 import emailVerificationRoutes from './routes/emailVerification.js'
 import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
-// ==========================================
-// CUSTOMER ORDERS
-// ==========================================
-
+// Customer orders
 import orderRoutes from './routes/orders.js'
 
-// ==========================================
-// STAFF ADMINISTRATION
-// ==========================================
-
+// Staff administration
 import adminOrdersRouter from './routes/adminOrders.js'
 import adminDeliveryZonesRouter from './routes/adminDeliveryZones.js'
 import adminInventoryRouter from './routes/adminInventory.js'
 import adminProductsRouter from './routes/adminProducts.js'
 
-// ==========================================
-// MILESTONE 4.13
-// STAFF ORDER NOTIFICATIONS
-// ==========================================
-
+// Staff notifications
 import staffNotificationsRouter from './routes/staffNotifications.js'
+import staffPushDevicesRouter from './routes/staffPushDevices.js'
 
-// ==========================================
-// MILESTONE 4.16
-// UNATTENDED ORDER MONITORING
-// ==========================================
-
+// Unattended-order monitoring
 import staffOrderAttentionRouter from './routes/staffOrderAttention.js'
 
 // ==========================================
@@ -87,18 +58,11 @@ const isProduction =
 app.disable('x-powered-by')
 
 // ==========================================
-// FRONTEND ORIGIN
+// FRONTEND ORIGIN CONFIGURATION
 // ==========================================
 
-/**
- * The same CLIENT_URL is used by:
- *
- * - Express CORS
- * - Checkout origin protection
- * - Staff notification write protection
- *
- * Production must explicitly configure it.
- */
+// Production must explicitly configure
+// its authorized frontend origin.
 
 if (
   isProduction &&
@@ -113,9 +77,48 @@ const clientUrl =
   process.env.CLIENT_URL ||
   'http://localhost:5173'
 
-const clientOrigin = new URL(
-  clientUrl,
-).origin
+const clientOrigin = new URL(clientUrl).origin
+
+// ==========================================
+// MULTI-DEVICE DEVELOPMENT ORIGINS
+// ==========================================
+
+// Support simultaneous testing using:
+//
+// MacBook browser:
+// http://localhost:5173
+//
+// Physical Android phone:
+// http://127.0.0.1
+//
+// Android emulator:
+// https://localhost
+//
+// Additional development origins are
+// permitted only in non-production mode
+// when explicitly enabled.
+
+const isAndroidLocalDevelopment =
+  !isProduction &&
+  process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+const allowedClientOrigins = new Set<string>([
+  clientOrigin,
+])
+
+if (isAndroidLocalDevelopment) {
+  allowedClientOrigins.add(
+    'http://localhost:5173',
+  )
+
+  allowedClientOrigins.add(
+    'http://127.0.0.1',
+  )
+
+  allowedClientOrigins.add(
+    'https://localhost',
+  )
+}
 
 // ==========================================
 // CORS
@@ -123,7 +126,7 @@ const clientOrigin = new URL(
 
 app.use(
   cors({
-    origin: clientOrigin,
+    origin: [...allowedClientOrigins],
     credentials: true,
   }),
 )
@@ -165,11 +168,10 @@ app.use('/api', catalogRoutes)
 // ==========================================
 
 app.use('/api/auth', authRoutes)
-
 app.use('/api/auth', sessionRoutes)
 
 // ==========================================
-// EMAIL VERIFICATION
+// EMAIL VERIFICATION AND RECOVERY
 // ==========================================
 
 app.use(
@@ -177,17 +179,13 @@ app.use(
   emailVerificationRoutes,
 )
 
-// ==========================================
-// PASSWORD RECOVERY
-// ==========================================
-
 app.use(
   '/api/auth/password',
   passwordRecoveryRoutes,
 )
 
 // ==========================================
-// CHECKOUT AND CUSTOMER ORDERS
+// CUSTOMER CHECKOUT AND ORDERS
 // ==========================================
 
 app.use('/api', orderRoutes)
@@ -202,24 +200,8 @@ app.use(
 )
 
 // ==========================================
-// MILESTONE 4.13
-// STAFF ORDER NOTIFICATION ROUTES
+// STAFF ORDER NOTIFICATIONS
 // ==========================================
-
-/**
- * All routes inside staffNotificationsRouter
- * require an authenticated, active, verified
- * staff account.
- *
- * Registered endpoints:
- *
- * GET /api/admin/notifications
- * GET /api/admin/notifications/unread-count
- * PATCH /api/admin/notifications/:alertId/read
- *
- * Read receipts are maintained separately
- * for each authorized staff member.
- */
 
 app.use(
   '/api/admin/notifications',
@@ -227,30 +209,17 @@ app.use(
 )
 
 // ==========================================
-// MILESTONE 4.16
-// UNATTENDED ORDER MONITORING
+// FIREBASE STAFF PUSH-DEVICE REGISTRATION
 // ==========================================
 
-/**
- * GET /api/admin/order-attention
- *
- * Returns:
- *
- * - Total pending orders
- * - Normal attention count
- * - Reminder attention count
- * - Escalated attention count
- * - Critical attention count
- * - Waiting times for pending orders
- * - Direct order review paths
- *
- * This is a read-only, staff-protected
- * monitoring endpoint.
- *
- * It does not change order status, mark
- * notifications as read, or initiate
- * payment or inventory operations.
- */
+app.use(
+  '/api/admin/push-devices',
+  staffPushDevicesRouter,
+)
+
+// ==========================================
+// UNATTENDED ORDER MONITORING
+// ==========================================
 
 app.use(
   '/api/admin/order-attention',
@@ -288,17 +257,6 @@ app.use(
 // PRODUCTION FRONTEND HOSTING
 // ==========================================
 
-/**
- * Expected deployed project layout:
- *
- * project/
- *   client/dist/
- *   server/dist/app.js
- *
- * Build both the React frontend and
- * Express backend before starting.
- */
-
 if (isProduction) {
   const serverDirectory = dirname(
     fileURLToPath(import.meta.url),
@@ -309,39 +267,16 @@ if (isProduction) {
     '../../client/dist',
   )
 
-  // ======================================
-  // SERVE COMPILED REACT ASSETS
-  // ======================================
+  // Serve compiled React frontend assets.
 
   app.use(
-    express.static(
-      clientDistDirectory,
-      {
-        index: false,
-        maxAge: '1h',
-      },
-    ),
+    express.static(clientDistDirectory, {
+      index: false,
+      maxAge: '1h',
+    }),
   )
 
-  // ======================================
-  // REACT ROUTER FALLBACK
-  // ======================================
-
-  /**
-   * Express 5 requires a named wildcard.
-   *
-   * Serve index.html for frontend routes,
-   * including:
-   *
-   * /products
-   * /products/:id
-   * /account
-   * /checkout
-   * /staff/orders
-   *
-   * API endpoints and missing assets
-   * must not be replaced with HTML.
-   */
+  // React Router fallback for Express 5.
 
   app.get(
     '/{*splat}',
@@ -362,10 +297,7 @@ if (isProduction) {
         return
       }
 
-      res.set(
-        'Cache-Control',
-        'no-cache',
-      )
+      res.set('Cache-Control', 'no-cache')
 
       res.sendFile(
         join(
@@ -448,7 +380,7 @@ const errorHandler: ErrorRequestHandler = (
 app.use(errorHandler)
 
 // ==========================================
-// EXPORT EXPRESS APP
+// EXPORT EXPRESS APPLICATION
 // ==========================================
 
 export { app }

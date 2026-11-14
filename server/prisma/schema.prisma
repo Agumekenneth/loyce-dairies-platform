@@ -164,6 +164,9 @@ model Customer {
   // Staff notification read history
   staffAlertReads StaffOrderAlertRead[]
 
+  // Firebase push devices registered by this staff account
+  pushDevices StaffPushDevice[]
+
   // ========================================
   // TIMESTAMPS
   // ========================================
@@ -780,4 +783,38 @@ model OrderEscalationEvent {
 
   @@unique([orderId, level])
   @@index([level, createdAt])
+}
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// FIREBASE PUSH NOTIFICATIONS
+// ==========================================
+
+enum PushPlatform {
+  ANDROID
+  IOS
+}
+
+model StaffPushDevice {
+  id String @id @default(cuid())
+
+  staffId String
+
+  token String @unique @db.VarChar(2048)
+
+  platform PushPlatform @default(ANDROID)
+
+  isActive Boolean @default(true)
+
+  lastSeenAt DateTime @default(now())
+
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Customer @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, isActive])
+  @@index([lastSeenAt])
 }

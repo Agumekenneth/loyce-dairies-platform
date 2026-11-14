@@ -1,3 +1,4 @@
+import { sendStaffNewOrderPush } from '../services/staffOrderPush.js'
 
 import { randomBytes } from 'node:crypto'
 import { Router } from 'express'
@@ -8,13 +9,28 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
 
-// Loyce Dairies | Milestone 4.13: transactional staff order notifications.
+// LOYCE DAIRIES PLATFORM
+// Customer checkout, inventory and order history
+// Multi-device local development support
+
 const router = Router()
+
 const MAX_DATABASE_INTEGER = 2_147_483_647
 
+// ==========================================
+// VALIDATION SCHEMAS
+// ==========================================
+
 const itemSchema = z.object({
-  productId: z.number().int().positive().max(MAX_DATABASE_INTEGER),
-  quantity: z.number().int().min(1).max(99),
+  productId: z.number()
+    .int()
+    .positive()
+    .max(MAX_DATABASE_INTEGER),
+
+  quantity: z.number()
+    .int()
+    .min(1)
+    .max(99),
 }).strict()
 
 const commonCheckoutFields = {
@@ -33,17 +49,26 @@ const deliveryCheckoutSchema = z.object({
   ...commonCheckoutFields,
   fulfillmentMethod: z.literal('DELIVERY'),
   paymentMethod: z.literal('CASH_ON_DELIVERY'),
-  deliveryZoneId: z.number().int().positive().max(MAX_DATABASE_INTEGER),
+  deliveryZoneId: z.number()
+    .int()
+    .positive()
+    .max(MAX_DATABASE_INTEGER),
   deliveryAddress: z.string().trim().min(8).max(250),
-  deliveryInstructions: z.string().trim().max(500).optional(),
+  deliveryInstructions: z.string()
+    .trim()
+    .max(500)
+    .optional(),
 }).strict()
 
-const checkoutSchema = z.discriminatedUnion('fulfillmentMethod', [
-  pickupCheckoutSchema,
-  deliveryCheckoutSchema,
-])
+const checkoutSchema = z.discriminatedUnion(
+  'fulfillmentMethod',
+  [pickupCheckoutSchema, deliveryCheckoutSchema],
+)
 
-// Do not change this selection: customer checkout and order-history UIs use it.
+// ==========================================
+// ORDER RESPONSE SELECTION
+// ==========================================
+
 const orderSelect = {
   id: true,
   orderNumber: true,
@@ -61,6 +86,7 @@ const orderSelect = {
   totalUgx: true,
   createdAt: true,
   updatedAt: true,
+
   items: {
     select: {
       id: true,
@@ -93,19 +119,55 @@ class CheckoutError extends Error {
   }
 }
 
-const requireTrustedCheckoutRequest: RequestHandler = (req, res, next) => {
-  const allowedOrigin = new URL(
-    process.env.CLIENT_URL ?? 'http://localhost:5173',
+// ==========================================
+// TRUSTED ORIGIN VALIDATION
+// ==========================================
+
+const requireTrustedCheckoutRequest: RequestHandler = (
+  req,
+  res,
+  next,
+) => {
+  const primaryOrigin = new URL(
+    process.env.CLIENT_URL ??
+      'http://localhost:5173',
   ).origin
+
+  const allowedOrigins = new Set<string>([
+    primaryOrigin,
+  ])
+
+  // Allow desktop and Android development
+  // origins only when explicitly enabled.
+  //
+  // Production retains its configured
+  // primary origin restriction.
+
+  const isLocalDevelopment =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+  if (isLocalDevelopment) {
+    allowedOrigins.add('http://localhost:5173')
+    allowedOrigins.add('http://127.0.0.1')
+    allowedOrigins.add('https://localhost')
+  }
+
   const origin = req.get('Origin')
 
-  if (origin && origin !== allowedOrigin) {
+  if (
+    origin &&
+    !allowedOrigins.has(origin)
+  ) {
     res.status(403).json({
       success: false,
       message: 'Request origin not allowed.',
     })
     return
   }
+
+  // Preserve checkout request-header
+  // validation for CSRF protection.
 
   if (req.get('X-Loyce-Request') !== '1') {
     res.status(403).json({
@@ -118,20 +180,37 @@ const requireTrustedCheckoutRequest: RequestHandler = (req, res, next) => {
   next()
 }
 
+// ==========================================
+// CHECKOUT RATE LIMIT
+// ==========================================
+
 const checkoutLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+
   message: {
     success: false,
-    message: 'Too many checkout attempts. Please try again later.',
+    message:
+      'Too many checkout attempts. Please try again later.',
   },
 })
 
+// ==========================================
+// ORDER UTILITIES
+// ==========================================
+
 function generateOrderNumber(): string {
-  const date = new Date().toISOString().slice(0, 10).replaceAll('-', '')
-  const suffix = randomBytes(10).toString('hex').toUpperCase()
+  const date = new Date()
+    .toISOString()
+    .slice(0, 10)
+    .replaceAll('-', '')
+
+  const suffix = randomBytes(10)
+    .toString('hex')
+    .toUpperCase()
+
   return `LD-${date}-${suffix}`
 }
 
@@ -141,30 +220,56 @@ function validateAmount(amount: number): void {
     amount < 0 ||
     amount > MAX_DATABASE_INTEGER
   ) {
-    throw new CheckoutError(422, 'The calculated order amount is not supported.')
+    throw new CheckoutError(
+      422,
+      'The calculated order amount is not supported.',
+    )
   }
 }
 
-// Public endpoint: active delivery zones only.
+// ==========================================
+// GET /api/delivery-zones
+// ==========================================
+
 router.get('/delivery-zones', async (_req, res) => {
   res.set('Cache-Control', 'no-store')
+
   const zones = await prisma.deliveryZone.findMany({
     where: { isActive: true },
-    select: { id: true, name: true, slug: true, feeUgx: true },
-    orderBy: { name: 'asc' },
+
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      feeUgx: true,
+    },
+
+    orderBy: {
+      name: 'asc',
+    },
   })
-  res.status(200).json({ success: true, count: zones.length, data: zones })
+
+  res.status(200).json({
+    success: true,
+    count: zones.length,
+    data: zones,
+  })
 })
 
-// Atomic checkout: inventory, order, audit history, and staff alert.
+// ==========================================
+// POST /api/orders/checkout
+// ==========================================
+
 router.post(
   '/orders/checkout',
   requireTrustedCheckoutRequest,
   checkoutLimiter,
+
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
 
     const session = await getCurrentSession(req)
+
     if (!session) {
       res.status(401).json({
         success: false,
@@ -182,10 +287,13 @@ router.post(
     }
 
     const parsed = checkoutSchema.safeParse(req.body)
+
     if (!parsed.success) {
       res.status(400).json({
         success: false,
-        message: 'Invalid checkout details or unsupported payment method.',
+        message:
+          'Invalid checkout details or unsupported payment method.',
+
         errors: parsed.error.issues.map((issue) => ({
           field: issue.path.join('.'),
           message: issue.message,
@@ -195,182 +303,363 @@ router.post(
     }
 
     const checkout = parsed.data
-    const productIds = checkout.items.map((item) => item.productId)
-    if (new Set(productIds).size !== productIds.length) {
+
+    const productIds = checkout.items.map(
+      (item) => item.productId,
+    )
+
+    if (
+      new Set(productIds).size !==
+      productIds.length
+    ) {
       res.status(400).json({
         success: false,
-        message: 'Each product must appear only once in the order.',
+        message:
+          'Each product must appear only once in the order.',
       })
       return
     }
 
     try {
-      const order = await prisma.$transaction(async (tx) => {
-        // Prices, availability, and delivery fees are authoritative in PostgreSQL.
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds }, isActive: true },
-          select: { id: true, name: true, unit: true, priceUgx: true },
-        })
-        if (products.length !== productIds.length) {
-          throw new CheckoutError(422, 'One or more selected products are unavailable.')
-        }
+      const order = await prisma.$transaction(
+        async (tx) => {
+          // Retrieve current product prices
+          // from the authoritative database.
 
-        const productMap = new Map(products.map((product) => [product.id, product]))
-        const orderItems = checkout.items.map((item) => {
-          const product = productMap.get(item.productId)
-          if (!product) {
-            throw new CheckoutError(422, 'A selected product is unavailable.')
-          }
-          if (!Number.isInteger(product.priceUgx) || product.priceUgx <= 0) {
-            throw new CheckoutError(422, 'A selected product has an invalid price.')
-          }
-
-          const lineTotalUgx = product.priceUgx * item.quantity
-          validateAmount(lineTotalUgx)
-          return {
-            product: { connect: { id: product.id } },
-            productName: product.name,
-            productUnit: product.unit,
-            unitPriceUgx: product.priceUgx,
-            quantity: item.quantity,
-            lineTotalUgx,
-          }
-        })
-
-        const subtotalUgx = orderItems.reduce(
-          (sum, item) => sum + item.lineTotalUgx,
-          0,
-        )
-        validateAmount(subtotalUgx)
-
-        let deliveryZone: {
-          id: number
-          name: string
-          feeUgx: number
-        } | null = null
-
-        if (checkout.fulfillmentMethod === 'DELIVERY') {
-          // Protect the validated fee against concurrent zone modifications.
-          const eligibleZones = await tx.$queryRaw<Array<{
-            id: number
-            name: string
-            feeUgx: number
-          }>>`
-            SELECT "id", "name", "feeUgx"
-            FROM "DeliveryZone"
-            WHERE "id" = ${checkout.deliveryZoneId}
-              AND "isActive" = true
-            FOR SHARE
-          `
-          deliveryZone = eligibleZones[0] ?? null
-          if (!deliveryZone) {
-            throw new CheckoutError(422, 'The selected delivery zone is unavailable.')
-          }
-          validateAmount(deliveryZone.feeUgx)
-        }
-
-        const deliveryFeeUgx = deliveryZone?.feeUgx ?? 0
-        const totalUgx = subtotalUgx + deliveryFeeUgx
-        validateAmount(totalUgx)
-
-        // Sort IDs to reduce deadlock risk under concurrent checkouts.
-        const sortedItems = [...checkout.items].sort(
-          (a, b) => a.productId - b.productId,
-        )
-        const inventoryMovements: InventoryMovement[] = []
-
-        for (const item of sortedItems) {
-          // Atomic conditional deduction prevents overselling.
-          const stockUpdate = await tx.product.updateMany({
+          const products = await tx.product.findMany({
             where: {
-              id: item.productId,
+              id: { in: productIds },
               isActive: true,
-              stockQuantity: { gte: item.quantity },
             },
-            data: { stockQuantity: { decrement: item.quantity } },
+
+            select: {
+              id: true,
+              name: true,
+              unit: true,
+              priceUgx: true,
+            },
           })
-          if (stockUpdate.count !== 1) {
+
+          if (products.length !== productIds.length) {
             throw new CheckoutError(
-              409,
-              'Insufficient stock for one or more products. Please review your cart.',
+              422,
+              'One or more selected products are unavailable.',
             )
           }
 
-          const stockBalance = await tx.product.findUniqueOrThrow({
-            where: { id: item.productId },
-            select: { stockQuantity: true },
-          })
-          const product = productMap.get(item.productId)
-          if (!product) {
-            throw new CheckoutError(422, 'A selected product is unavailable.')
+          const productMap = new Map(
+            products.map((product) => [
+              product.id,
+              product,
+            ]),
+          )
+
+          const orderItems = checkout.items.map(
+            (item) => {
+              const product = productMap.get(
+                item.productId,
+              )
+
+              if (!product) {
+                throw new CheckoutError(
+                  422,
+                  'A selected product is unavailable.',
+                )
+              }
+
+              if (
+                !Number.isInteger(product.priceUgx) ||
+                product.priceUgx <= 0
+              ) {
+                throw new CheckoutError(
+                  422,
+                  'A selected product has an invalid price.',
+                )
+              }
+
+              const lineTotalUgx =
+                product.priceUgx * item.quantity
+
+              validateAmount(lineTotalUgx)
+
+              return {
+                product: {
+                  connect: { id: product.id },
+                },
+                productName: product.name,
+                productUnit: product.unit,
+                unitPriceUgx: product.priceUgx,
+                quantity: item.quantity,
+                lineTotalUgx,
+              }
+            },
+          )
+
+          const subtotalUgx = orderItems.reduce(
+            (sum, item) =>
+              sum + item.lineTotalUgx,
+            0,
+          )
+
+          validateAmount(subtotalUgx)
+
+          // ==================================
+          // DELIVERY ZONE VALIDATION
+          // ==================================
+
+          let deliveryZone: {
+            id: number
+            name: string
+            feeUgx: number
+          } | null = null
+
+          if (
+            checkout.fulfillmentMethod ===
+            'DELIVERY'
+          ) {
+            const eligibleZones =
+              await tx.$queryRaw<Array<{
+                id: number
+                name: string
+                feeUgx: number
+              }>>`
+                SELECT "id", "name", "feeUgx"
+                FROM "DeliveryZone"
+                WHERE "id" = ${checkout.deliveryZoneId}
+                  AND "isActive" = true
+                FOR SHARE
+              `
+
+            deliveryZone =
+              eligibleZones[0] ?? null
+
+            if (!deliveryZone) {
+              throw new CheckoutError(
+                422,
+                'The selected delivery zone is unavailable.',
+              )
+            }
+
+            validateAmount(deliveryZone.feeUgx)
           }
 
-          inventoryMovements.push({
-            productId: item.productId,
-            productName: product.name,
-            productUnit: product.unit,
-            quantity: item.quantity,
-            quantityBefore: stockBalance.stockQuantity + item.quantity,
-            quantityAfter: stockBalance.stockQuantity,
+          const deliveryFeeUgx =
+            deliveryZone?.feeUgx ?? 0
+
+          const totalUgx =
+            subtotalUgx + deliveryFeeUgx
+
+          validateAmount(totalUgx)
+
+          // ==================================
+          // ATOMIC INVENTORY DEDUCTION
+          // ==================================
+
+          const sortedItems = [
+            ...checkout.items,
+          ].sort(
+            (a, b) => a.productId - b.productId,
+          )
+
+          const inventoryMovements:
+            InventoryMovement[] = []
+
+          for (const item of sortedItems) {
+            const stockUpdate =
+              await tx.product.updateMany({
+                where: {
+                  id: item.productId,
+                  isActive: true,
+                  stockQuantity: {
+                    gte: item.quantity,
+                  },
+                },
+
+                data: {
+                  stockQuantity: {
+                    decrement: item.quantity,
+                  },
+                },
+              })
+
+            if (stockUpdate.count !== 1) {
+              throw new CheckoutError(
+                409,
+                'Insufficient stock for one or more products. Please review your cart.',
+              )
+            }
+
+            const stockBalance =
+              await tx.product.findUniqueOrThrow({
+                where: {
+                  id: item.productId,
+                },
+
+                select: {
+                  stockQuantity: true,
+                },
+              })
+
+            const product = productMap.get(
+              item.productId,
+            )
+
+            if (!product) {
+              throw new CheckoutError(
+                422,
+                'A selected product is unavailable.',
+              )
+            }
+
+            inventoryMovements.push({
+              productId: item.productId,
+              productName: product.name,
+              productUnit: product.unit,
+              quantity: item.quantity,
+              quantityBefore:
+                stockBalance.stockQuantity +
+                item.quantity,
+              quantityAfter:
+                stockBalance.stockQuantity,
+            })
+          }
+
+          // ==================================
+          // SAVE CUSTOMER ORDER
+          // ==================================
+
+          const savedOrder = await tx.order.create({
+            data: {
+              orderNumber: generateOrderNumber(),
+
+              customer: {
+                connect: {
+                  id: session.customer.id,
+                },
+              },
+
+              fulfillmentMethod:
+                checkout.fulfillmentMethod,
+
+              paymentMethod:
+                checkout.paymentMethod,
+
+              status: 'PENDING',
+              paymentStatus: 'PENDING',
+
+              recipientName:
+                checkout.recipientName,
+
+              contactPhone:
+                checkout.contactPhone,
+
+              deliveryZone: deliveryZone
+                ? {
+                    connect: {
+                      id: deliveryZone.id,
+                    },
+                  }
+                : undefined,
+
+              deliveryZoneName:
+                deliveryZone?.name ?? null,
+
+              deliveryAddress:
+                checkout.fulfillmentMethod ===
+                'DELIVERY'
+                  ? checkout.deliveryAddress
+                  : null,
+
+              deliveryInstructions:
+                checkout.fulfillmentMethod ===
+                'DELIVERY'
+                  ? checkout.deliveryInstructions ??
+                    null
+                  : null,
+
+              subtotalUgx,
+              deliveryFeeUgx,
+              totalUgx,
+
+              items: {
+                create: orderItems,
+              },
+            },
+
+            select: orderSelect,
           })
-        }
 
-        const savedOrder = await tx.order.create({
-          data: {
-            orderNumber: generateOrderNumber(),
-            customer: { connect: { id: session.customer.id } },
-            fulfillmentMethod: checkout.fulfillmentMethod,
-            paymentMethod: checkout.paymentMethod,
-            status: 'PENDING',
-            paymentStatus: 'PENDING',
-            recipientName: checkout.recipientName,
-            contactPhone: checkout.contactPhone,
-            deliveryZone: deliveryZone
-              ? { connect: { id: deliveryZone.id } }
-              : undefined,
-            deliveryZoneName: deliveryZone?.name ?? null,
-            deliveryAddress: checkout.fulfillmentMethod === 'DELIVERY'
-              ? checkout.deliveryAddress
-              : null,
-            deliveryInstructions: checkout.fulfillmentMethod === 'DELIVERY'
-              ? checkout.deliveryInstructions ?? null
-              : null,
-            subtotalUgx,
-            deliveryFeeUgx,
-            totalUgx,
-            items: { create: orderItems },
-          },
-          select: orderSelect,
-        })
+          // ==================================
+          // INVENTORY AUDIT EVENTS
+          // ==================================
 
-        await tx.inventoryEvent.createMany({
-          data: inventoryMovements.map((movement) => ({
-            productId: movement.productId,
-            productName: movement.productName,
-            productUnit: movement.productUnit,
-            orderId: savedOrder.id,
-            action: 'ORDER_PLACED' as const,
-            quantityChange: -movement.quantity,
-            quantityBefore: movement.quantityBefore,
-            quantityAfter: movement.quantityAfter,
-            note: 'Customer checkout stock deduction',
-          })),
-        })
+          await tx.inventoryEvent.createMany({
+            data: inventoryMovements.map(
+              (movement) => ({
+                productId: movement.productId,
+                productName:
+                  movement.productName,
+                productUnit:
+                  movement.productUnit,
+                orderId: savedOrder.id,
+                action: 'ORDER_PLACED' as const,
+                quantityChange:
+                  -movement.quantity,
+                quantityBefore:
+                  movement.quantityBefore,
+                quantityAfter:
+                  movement.quantityAfter,
+                note:
+                  'Customer checkout stock deduction',
+              }),
+            ),
+          })
 
-        // Milestone 4.13: persist one shared alert per successfully created
-        // order. StaffOrderAlertRead tracks each staff member's read status.
-        // If creation fails, the whole checkout transaction rolls back.
-        await tx.staffOrderAlert.create({
-          data: { orderId: savedOrder.id },
-        })
+          // ==================================
+          // STAFF NEW-ORDER ALERT
+          // ==================================
 
-        return savedOrder
-      })
+          await tx.staffOrderAlert.create({
+            data: {
+              orderId: savedOrder.id,
+            },
+          })
 
-      // Preserve the existing checkout response contract.
+          return savedOrder
+        },
+      )
+
+      // ======================================
+      // FIREBASE NEW ORDER PUSH NOTIFICATIONS
+      // ======================================
+      // PostgreSQL has already committed.
+      // Firebase failure must not cancel
+      // an otherwise successful checkout.
+
+      if (process.env.LOYCE_FCM_ORDER_PUSH_ENABLED === '1') {
+        void sendStaffNewOrderPush(order.id)
+          .then((result) => {
+            console.info(
+              'Loyce Dairies FCM delivery:',
+              {
+                attempted: result.attempted,
+                accepted: result.accepted,
+                failed: result.failed,
+                invalidated: result.invalidated,
+              },
+            )
+          })
+          .catch(() => {
+            console.error(
+              'FCM notification failed after successful checkout.',
+            )
+          })
+      }
+
       res.status(201).json({
         success: true,
-        message: 'Your order has been received and is pending confirmation.',
+        message:
+          'Your order has been received and is pending confirmation.',
         data: order,
       })
     } catch (error: unknown) {
@@ -381,54 +670,101 @@ router.post(
         })
         return
       }
-      // Express 5 forwards rejected async handlers to the error handler.
+
       throw error
     }
   },
 )
 
-// Customer-facing order history: never expose another customer's orders.
+// ==========================================
+// GET /api/orders
+// ==========================================
+
 router.get('/orders', async (req, res) => {
   res.set('Cache-Control', 'no-store')
+
   const session = await getCurrentSession(req)
+
   if (!session) {
-    res.status(401).json({ success: false, message: 'Authentication required.' })
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required.',
+    })
     return
   }
 
   const orders = await prisma.order.findMany({
-    where: { customerId: session.customer.id },
-    orderBy: { createdAt: 'desc' },
+    where: {
+      customerId: session.customer.id,
+    },
+
+    orderBy: {
+      createdAt: 'desc',
+    },
+
     take: 50,
     select: orderSelect,
   })
-  res.status(200).json({ success: true, count: orders.length, data: orders })
+
+  res.status(200).json({
+    success: true,
+    count: orders.length,
+    data: orders,
+  })
 })
+
+// ==========================================
+// GET /api/orders/:orderId
+// ==========================================
 
 router.get('/orders/:orderId', async (req, res) => {
   res.set('Cache-Control', 'no-store')
+
   const session = await getCurrentSession(req)
+
   if (!session) {
-    res.status(401).json({ success: false, message: 'Authentication required.' })
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required.',
+    })
     return
   }
 
   const orderId = req.params.orderId
-  if (typeof orderId !== 'string' || !orderId || orderId.length > 100) {
-    res.status(404).json({ success: false, message: 'Order not found.' })
+
+  if (
+    typeof orderId !== 'string' ||
+    !orderId ||
+    orderId.length > 100
+  ) {
+    res.status(404).json({
+      success: false,
+      message: 'Order not found.',
+    })
     return
   }
 
   const order = await prisma.order.findFirst({
-    where: { id: orderId, customerId: session.customer.id },
+    where: {
+      id: orderId,
+      customerId: session.customer.id,
+    },
+
     select: orderSelect,
   })
+
   if (!order) {
-    res.status(404).json({ success: false, message: 'Order not found.' })
+    res.status(404).json({
+      success: false,
+      message: 'Order not found.',
+    })
     return
   }
 
-  res.status(200).json({ success: true, data: order })
+  res.status(200).json({
+    success: true,
+    data: order,
+  })
 })
 
 export default router

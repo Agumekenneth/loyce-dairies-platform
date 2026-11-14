@@ -411,7 +411,8 @@ export const ModelName = {
   ProductAuditEvent: 'ProductAuditEvent',
   StaffOrderAlert: 'StaffOrderAlert',
   StaffOrderAlertRead: 'StaffOrderAlertRead',
-  OrderEscalationEvent: 'OrderEscalationEvent'
+  OrderEscalationEvent: 'OrderEscalationEvent',
+  StaffPushDevice: 'StaffPushDevice'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -427,7 +428,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead" | "orderEscalationEvent"
+    modelProps: "category" | "product" | "customer" | "customerSession" | "customerActionToken" | "deliveryZone" | "order" | "orderItem" | "orderStatusEvent" | "deliveryZoneAuditEvent" | "inventoryEvent" | "productAuditEvent" | "staffOrderAlert" | "staffOrderAlertRead" | "orderEscalationEvent" | "staffPushDevice"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1541,6 +1542,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    StaffPushDevice: {
+      payload: Prisma.$StaffPushDevicePayload<ExtArgs>
+      fields: Prisma.StaffPushDeviceFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StaffPushDeviceFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StaffPushDeviceFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>
+        }
+        findFirst: {
+          args: Prisma.StaffPushDeviceFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StaffPushDeviceFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>
+        }
+        findMany: {
+          args: Prisma.StaffPushDeviceFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>[]
+        }
+        create: {
+          args: Prisma.StaffPushDeviceCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>
+        }
+        createMany: {
+          args: Prisma.StaffPushDeviceCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StaffPushDeviceCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>[]
+        }
+        delete: {
+          args: Prisma.StaffPushDeviceDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>
+        }
+        update: {
+          args: Prisma.StaffPushDeviceUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>
+        }
+        deleteMany: {
+          args: Prisma.StaffPushDeviceDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StaffPushDeviceUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StaffPushDeviceUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>[]
+        }
+        upsert: {
+          args: Prisma.StaffPushDeviceUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StaffPushDevicePayload>
+        }
+        aggregate: {
+          args: Prisma.StaffPushDeviceAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStaffPushDevice>
+        }
+        groupBy: {
+          args: Prisma.StaffPushDeviceGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffPushDeviceGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StaffPushDeviceCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StaffPushDeviceCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1784,6 +1859,21 @@ export const OrderEscalationEventScalarFieldEnum = {
 } as const
 
 export type OrderEscalationEventScalarFieldEnum = (typeof OrderEscalationEventScalarFieldEnum)[keyof typeof OrderEscalationEventScalarFieldEnum]
+
+
+export const StaffPushDeviceScalarFieldEnum = {
+  id: 'id',
+  staffId: 'staffId',
+  token: 'token',
+  platform: 'platform',
+  isActive: 'isActive',
+  lastSeenAt: 'lastSeenAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type StaffPushDeviceScalarFieldEnum = (typeof StaffPushDeviceScalarFieldEnum)[keyof typeof StaffPushDeviceScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2044,6 +2134,20 @@ export type ListEnumOrderEscalationLevelFieldRefInput<$PrismaModel> = FieldRefIn
 
 
 /**
+ * Reference to a field of type 'PushPlatform'
+ */
+export type EnumPushPlatformFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PushPlatform'>
+    
+
+
+/**
+ * Reference to a field of type 'PushPlatform[]'
+ */
+export type ListEnumPushPlatformFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PushPlatform[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -2222,6 +2326,7 @@ export type GlobalOmitConfig = {
   staffOrderAlert?: Prisma.StaffOrderAlertOmit
   staffOrderAlertRead?: Prisma.StaffOrderAlertReadOmit
   orderEscalationEvent?: Prisma.OrderEscalationEventOmit
+  staffPushDevice?: Prisma.StaffPushDeviceOmit
 }
 
 /* Types for Logging */

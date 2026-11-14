@@ -1,0 +1,793 @@
+
+import { randomBytes } from 'node:crypto'
+import { Router } from 'express'
+import type { RequestHandler } from 'express'
+import { rateLimit } from 'express-rate-limit'
+import { z } from 'zod'
+
+import { prisma } from '../lib/prisma.js'
+import { getCurrentSession } from '../lib/session.js'
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// CUSTOMER CHECKOUT AND ORDER HISTORY
+// NATIVE ANDROID DEVELOPMENT SUPPORT
+// ==========================================
+
+const router = Router()
+const MAX_DATABASE_INTEGER = 2_147_483_647
+
+// ==========================================
+// CHECKOUT REQUEST VALIDATION
+// ==========================================
+
+const itemSchema = z.object({
+  productId: z.number()
+    .int()
+    .positive()
+    .max(MAX_DATABASE_INTEGER),
+
+  quantity: z.number()
+    .int()
+    .min(1)
+    .max(99),
+}).strict()
+
+const commonCheckoutFields = {
+  recipientName: z.string().trim().min(2).max(100),
+  contactPhone: z.string().trim().min(7).max(20),
+  items: z.array(itemSchema).min(1).max(20),
+}
+
+const pickupCheckoutSchema = z.object({
+  ...commonCheckoutFields,
+  fulfillmentMethod: z.literal('PICKUP'),
+  paymentMethod: z.literal('CASH_ON_PICKUP'),
+}).strict()
+
+const deliveryCheckoutSchema = z.object({
+  ...commonCheckoutFields,
+  fulfillmentMethod: z.literal('DELIVERY'),
+  paymentMethod: z.literal('CASH_ON_DELIVERY'),
+  deliveryZoneId: z.number()
+    .int()
+    .positive()
+    .max(MAX_DATABASE_INTEGER),
+  deliveryAddress: z.string().trim().min(8).max(250),
+  deliveryInstructions: z.string()
+    .trim()
+    .max(500)
+    .optional(),
+}).strict()
+
+const checkoutSchema = z.discriminatedUnion(
+  'fulfillmentMethod',
+  [
+    pickupCheckoutSchema,
+    deliveryCheckoutSchema,
+  ],
+)
+
+// ==========================================
+// ORDER RESPONSE FIELDS
+// ==========================================
+
+const orderSelect = {
+  id: true,
+  orderNumber: true,
+  fulfillmentMethod: true,
+  status: true,
+  paymentMethod: true,
+  paymentStatus: true,
+  recipientName: true,
+  contactPhone: true,
+  deliveryAddress: true,
+  deliveryInstructions: true,
+  deliveryZoneName: true,
+  subtotalUgx: true,
+  deliveryFeeUgx: true,
+  totalUgx: true,
+  createdAt: true,
+  updatedAt: true,
+
+  items: {
+    select: {
+      id: true,
+      productId: true,
+      productName: true,
+      productUnit: true,
+      unitPriceUgx: true,
+      quantity: true,
+      lineTotalUgx: true,
+    },
+  },
+} as const
+
+type InventoryMovement = {
+  productId: number
+  productName: string
+  productUnit: string
+  quantity: number
+  quantityBefore: number
+  quantityAfter: number
+}
+
+class CheckoutError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'CheckoutError'
+  }
+}
+
+// ==========================================
+// TRUSTED CHECKOUT ORIGINS
+// ==========================================
+
+const requireTrustedCheckoutRequest: RequestHandler = (
+  req,
+  res,
+  next,
+) => {
+  const webOrigin = new URL(
+    process.env.CLIENT_URL ??
+      'http://localhost:5173',
+  ).origin
+
+  const allowedOrigins = [webOrigin]
+
+  // Capacitor serves bundled application
+  // assets from https://localhost.
+  //
+  // Allow the native development origin
+  // only when explicitly enabled.
+  //
+  // Production does not permit this
+  // development exception.
+
+  const allowAndroidDevelopment =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+  if (allowAndroidDevelopment) {
+    allowedOrigins.push('https://localhost')
+  }
+
+  const origin = req.get('Origin')
+
+  if (
+    origin &&
+    !allowedOrigins.includes(origin)
+  ) {
+    res.status(403).json({
+      success: false,
+      message: 'Request origin not allowed.',
+    })
+    return
+  }
+
+  // Preserve the existing request-header
+  // protection for checkout operations.
+
+  if (req.get('X-Loyce-Request') !== '1') {
+    res.status(403).json({
+      success: false,
+      message: 'Required request header is missing.',
+    })
+    return
+  }
+
+  next()
+}
+
+// ==========================================
+// CHECKOUT RATE LIMITING
+// ==========================================
+
+const checkoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+
+  message: {
+    success: false,
+    message:
+      'Too many checkout attempts. Please try again later.',
+  },
+})
+
+// ==========================================
+// ORDER NUMBER GENERATION
+// ==========================================
+
+function generateOrderNumber(): string {
+  const date = new Date()
+    .toISOString()
+    .slice(0, 10)
+    .replaceAll('-', '')
+
+  const suffix = randomBytes(10)
+    .toString('hex')
+    .toUpperCase()
+
+  return `LD-${date}-${suffix}`
+}
+
+// ==========================================
+// VALIDATE CURRENCY AMOUNTS
+// ==========================================
+
+function validateAmount(amount: number): void {
+  if (
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    amount > MAX_DATABASE_INTEGER
+  ) {
+    throw new CheckoutError(
+      422,
+      'The calculated order amount is not supported.',
+    )
+  }
+}
+
+// ==========================================
+// GET /api/delivery-zones
+// ==========================================
+
+router.get('/delivery-zones', async (_req, res) => {
+  res.set('Cache-Control', 'no-store')
+
+  const zones = await prisma.deliveryZone.findMany({
+    where: { isActive: true },
+
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      feeUgx: true,
+    },
+
+    orderBy: { name: 'asc' },
+  })
+
+  res.status(200).json({
+    success: true,
+    count: zones.length,
+    data: zones,
+  })
+})
+
+// ==========================================
+// POST /api/orders/checkout
+// ==========================================
+
+router.post(
+  '/orders/checkout',
+  requireTrustedCheckoutRequest,
+  checkoutLimiter,
+
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+
+    // Require an authenticated customer.
+
+    const session = await getCurrentSession(req)
+
+    if (!session) {
+      res.status(401).json({
+        success: false,
+        message: 'Please sign in before checking out.',
+      })
+      return
+    }
+
+    // Require JSON request data.
+
+    if (!req.is('application/json')) {
+      res.status(415).json({
+        success: false,
+        message:
+          'Content-Type must be application/json.',
+      })
+      return
+    }
+
+    // Validate checkout details.
+
+    const parsed = checkoutSchema.safeParse(
+      req.body,
+    )
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message:
+          'Invalid checkout details or unsupported payment method.',
+
+        errors: parsed.error.issues.map(
+          (issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          }),
+        ),
+      })
+      return
+    }
+
+    const checkout = parsed.data
+
+    const productIds = checkout.items.map(
+      (item) => item.productId,
+    )
+
+    if (
+      new Set(productIds).size !==
+      productIds.length
+    ) {
+      res.status(400).json({
+        success: false,
+        message:
+          'Each product must appear only once in the order.',
+      })
+      return
+    }
+
+    try {
+      // ====================================
+      // ATOMIC DATABASE TRANSACTION
+      // ====================================
+
+      const order = await prisma.$transaction(
+        async (tx) => {
+          // Retrieve authoritative product
+          // prices and availability.
+
+          const products = await tx.product.findMany({
+            where: {
+              id: { in: productIds },
+              isActive: true,
+            },
+
+            select: {
+              id: true,
+              name: true,
+              unit: true,
+              priceUgx: true,
+            },
+          })
+
+          if (products.length !== productIds.length) {
+            throw new CheckoutError(
+              422,
+              'One or more selected products are unavailable.',
+            )
+          }
+
+          const productMap = new Map(
+            products.map((product) => [
+              product.id,
+              product,
+            ]),
+          )
+
+          const orderItems = checkout.items.map(
+            (item) => {
+              const product = productMap.get(
+                item.productId,
+              )
+
+              if (!product) {
+                throw new CheckoutError(
+                  422,
+                  'A selected product is unavailable.',
+                )
+              }
+
+              if (
+                !Number.isInteger(product.priceUgx) ||
+                product.priceUgx <= 0
+              ) {
+                throw new CheckoutError(
+                  422,
+                  'A selected product has an invalid price.',
+                )
+              }
+
+              const lineTotalUgx =
+                product.priceUgx * item.quantity
+
+              validateAmount(lineTotalUgx)
+
+              return {
+                product: {
+                  connect: { id: product.id },
+                },
+                productName: product.name,
+                productUnit: product.unit,
+                unitPriceUgx: product.priceUgx,
+                quantity: item.quantity,
+                lineTotalUgx,
+              }
+            },
+          )
+
+          const subtotalUgx = orderItems.reduce(
+            (sum, item) =>
+              sum + item.lineTotalUgx,
+            0,
+          )
+
+          validateAmount(subtotalUgx)
+
+          // ==================================
+          // DELIVERY ZONE VALIDATION
+          // ==================================
+
+          let deliveryZone: {
+            id: number
+            name: string
+            feeUgx: number
+          } | null = null
+
+          if (
+            checkout.fulfillmentMethod ===
+            'DELIVERY'
+          ) {
+            const eligibleZones =
+              await tx.$queryRaw<Array<{
+                id: number
+                name: string
+                feeUgx: number
+              }>>`
+                SELECT "id", "name", "feeUgx"
+                FROM "DeliveryZone"
+                WHERE "id" = ${checkout.deliveryZoneId}
+                  AND "isActive" = true
+                FOR SHARE
+              `
+
+            deliveryZone =
+              eligibleZones[0] ?? null
+
+            if (!deliveryZone) {
+              throw new CheckoutError(
+                422,
+                'The selected delivery zone is unavailable.',
+              )
+            }
+
+            validateAmount(deliveryZone.feeUgx)
+          }
+
+          const deliveryFeeUgx =
+            deliveryZone?.feeUgx ?? 0
+
+          const totalUgx =
+            subtotalUgx + deliveryFeeUgx
+
+          validateAmount(totalUgx)
+
+          // ==================================
+          // ATOMIC INVENTORY DEDUCTION
+          // ==================================
+
+          const sortedItems = [
+            ...checkout.items,
+          ].sort(
+            (a, b) =>
+              a.productId - b.productId,
+          )
+
+          const inventoryMovements:
+            InventoryMovement[] = []
+
+          for (const item of sortedItems) {
+            const stockUpdate =
+              await tx.product.updateMany({
+                where: {
+                  id: item.productId,
+                  isActive: true,
+                  stockQuantity: {
+                    gte: item.quantity,
+                  },
+                },
+
+                data: {
+                  stockQuantity: {
+                    decrement: item.quantity,
+                  },
+                },
+              })
+
+            if (stockUpdate.count !== 1) {
+              throw new CheckoutError(
+                409,
+                'Insufficient stock for one or more products. Please review your cart.',
+              )
+            }
+
+            const stockBalance =
+              await tx.product.findUniqueOrThrow({
+                where: {
+                  id: item.productId,
+                },
+
+                select: {
+                  stockQuantity: true,
+                },
+              })
+
+            const product = productMap.get(
+              item.productId,
+            )
+
+            if (!product) {
+              throw new CheckoutError(
+                422,
+                'A selected product is unavailable.',
+              )
+            }
+
+            inventoryMovements.push({
+              productId: item.productId,
+              productName: product.name,
+              productUnit: product.unit,
+              quantity: item.quantity,
+              quantityBefore:
+                stockBalance.stockQuantity +
+                item.quantity,
+              quantityAfter:
+                stockBalance.stockQuantity,
+            })
+          }
+
+          // ==================================
+          // CREATE CUSTOMER ORDER
+          // ==================================
+
+          const savedOrder =
+            await tx.order.create({
+              data: {
+                orderNumber:
+                  generateOrderNumber(),
+
+                customer: {
+                  connect: {
+                    id: session.customer.id,
+                  },
+                },
+
+                fulfillmentMethod:
+                  checkout.fulfillmentMethod,
+
+                paymentMethod:
+                  checkout.paymentMethod,
+
+                status: 'PENDING',
+                paymentStatus: 'PENDING',
+
+                recipientName:
+                  checkout.recipientName,
+
+                contactPhone:
+                  checkout.contactPhone,
+
+                deliveryZone: deliveryZone
+                  ? {
+                      connect: {
+                        id: deliveryZone.id,
+                      },
+                    }
+                  : undefined,
+
+                deliveryZoneName:
+                  deliveryZone?.name ?? null,
+
+                deliveryAddress:
+                  checkout.fulfillmentMethod ===
+                  'DELIVERY'
+                    ? checkout.deliveryAddress
+                    : null,
+
+                deliveryInstructions:
+                  checkout.fulfillmentMethod ===
+                  'DELIVERY'
+                    ? checkout.deliveryInstructions ??
+                      null
+                    : null,
+
+                subtotalUgx,
+                deliveryFeeUgx,
+                totalUgx,
+
+                items: {
+                  create: orderItems,
+                },
+              },
+
+              select: orderSelect,
+            })
+
+          // ==================================
+          // RECORD INVENTORY AUDIT EVENTS
+          // ==================================
+
+          await tx.inventoryEvent.createMany({
+            data: inventoryMovements.map(
+              (movement) => ({
+                productId:
+                  movement.productId,
+
+                productName:
+                  movement.productName,
+
+                productUnit:
+                  movement.productUnit,
+
+                orderId: savedOrder.id,
+
+                action:
+                  'ORDER_PLACED' as const,
+
+                quantityChange:
+                  -movement.quantity,
+
+                quantityBefore:
+                  movement.quantityBefore,
+
+                quantityAfter:
+                  movement.quantityAfter,
+
+                note:
+                  'Customer checkout stock deduction',
+              }),
+            ),
+          })
+
+          // ==================================
+          // CREATE STAFF ORDER ALERT
+          // ==================================
+
+          // Create one shared alert for
+          // each successfully placed order.
+          //
+          // If alert creation fails, the
+          // checkout transaction rolls back.
+
+          await tx.staffOrderAlert.create({
+            data: {
+              orderId: savedOrder.id,
+            },
+          })
+
+          return savedOrder
+        },
+      )
+
+      // ====================================
+      // SUCCESSFUL CHECKOUT RESPONSE
+      // ====================================
+
+      res.status(201).json({
+        success: true,
+        message:
+          'Your order has been received and is pending confirmation.',
+        data: order,
+      })
+    } catch (error: unknown) {
+      if (error instanceof CheckoutError) {
+        res.status(error.statusCode).json({
+          success: false,
+          message: error.message,
+        })
+        return
+      }
+
+      throw error
+    }
+  },
+)
+
+// ==========================================
+// GET /api/orders
+// CUSTOMER ORDER HISTORY
+// ==========================================
+
+router.get('/orders', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+
+  const session =
+    await getCurrentSession(req)
+
+  if (!session) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required.',
+    })
+    return
+  }
+
+  const orders = await prisma.order.findMany({
+    where: {
+      customerId: session.customer.id,
+    },
+
+    orderBy: {
+      createdAt: 'desc',
+    },
+
+    take: 50,
+    select: orderSelect,
+  })
+
+  res.status(200).json({
+    success: true,
+    count: orders.length,
+    data: orders,
+  })
+})
+
+// ==========================================
+// GET /api/orders/:orderId
+// CUSTOMER ORDER DETAILS
+// ==========================================
+
+router.get(
+  '/orders/:orderId',
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+
+    const session =
+      await getCurrentSession(req)
+
+    if (!session) {
+      res.status(401).json({
+        success: false,
+        message:
+          'Authentication required.',
+      })
+      return
+    }
+
+    const orderId = req.params.orderId
+
+    if (
+      typeof orderId !== 'string' ||
+      !orderId ||
+      orderId.length > 100
+    ) {
+      res.status(404).json({
+        success: false,
+        message: 'Order not found.',
+      })
+      return
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        customerId: session.customer.id,
+      },
+
+      select: orderSelect,
+    })
+
+    if (!order) {
+      res.status(404).json({
+        success: false,
+        message: 'Order not found.',
+      })
+      return
+    }
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    })
+  },
+)
+
+export default router

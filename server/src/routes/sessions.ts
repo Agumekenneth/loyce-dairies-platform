@@ -18,7 +18,7 @@ import {
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // CUSTOMER AUTHENTICATION ROUTES
-// STAFF ROLE SUPPORT
+// MULTI-DEVICE LOCAL DEVELOPMENT
 // ==========================================
 
 const router = Router()
@@ -44,12 +44,9 @@ const loginSchema = z.object({
 // LOGIN RATE LIMITING
 // ==========================================
 
-// Restrict repeated login attempts.
-
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-
   standardHeaders: 'draft-8',
   legacyHeaders: false,
 
@@ -61,7 +58,7 @@ const loginLimiter = rateLimit({
 })
 
 // ==========================================
-// TRUSTED ORIGIN CHECK
+// TRUSTED REQUEST ORIGINS
 // ==========================================
 
 const checkTrustedOrigin: RequestHandler = (
@@ -71,11 +68,44 @@ const checkTrustedOrigin: RequestHandler = (
 ) => {
   const origin = req.get('Origin')
 
-  const allowedOrigin =
+  const webOrigin = new URL(
     process.env.CLIENT_URL ??
-    'http://localhost:5173'
+      'http://localhost:5173',
+  ).origin
 
-  if (origin && origin !== allowedOrigin) {
+  const allowedOrigins = new Set<string>([
+    webOrigin,
+  ])
+
+  // Permit both desktop and native Android
+  // development origins only when explicitly
+  // enabled outside production.
+
+  const allowLocalDevelopment =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+  if (allowLocalDevelopment) {
+    // MacBook browser
+    allowedOrigins.add(
+      'http://localhost:5173',
+    )
+
+    // Physical LG Android phone
+    allowedOrigins.add(
+      'http://127.0.0.1',
+    )
+
+    // Capacitor emulator development
+    allowedOrigins.add(
+      'https://localhost',
+    )
+  }
+
+  if (
+    origin &&
+    !allowedOrigins.has(origin)
+  ) {
     res.status(403).json({
       success: false,
       message: 'Request origin not allowed.',
@@ -98,10 +128,6 @@ router.post(
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
 
-    // ======================================
-    // VALIDATE REQUEST CONTENT TYPE
-    // ======================================
-
     if (!req.is('application/json')) {
       res.status(415).json({
         success: false,
@@ -110,10 +136,6 @@ router.post(
       })
       return
     }
-
-    // ======================================
-    // VALIDATE LOGIN CREDENTIALS
-    // ======================================
 
     const result = loginSchema.safeParse(
       req.body,
@@ -127,12 +149,7 @@ router.post(
       return
     }
 
-    const { email, password } =
-      result.data
-
-    // ======================================
-    // RETRIEVE CUSTOMER ACCOUNT
-    // ======================================
+    const { email, password } = result.data
 
     const customer =
       await prisma.customer.findUnique({
@@ -140,13 +157,6 @@ router.post(
           email,
         },
       })
-
-    // ======================================
-    // VALIDATE CUSTOMER ACCOUNT
-    // ======================================
-
-    // Do not reveal whether the supplied
-    // email address belongs to an account.
 
     if (
       !customer ||
@@ -159,10 +169,6 @@ router.post(
       })
       return
     }
-
-    // ======================================
-    // VERIFY PASSWORD
-    // ======================================
 
     const passwordValid =
       await argon2.verify(
@@ -178,31 +184,36 @@ router.post(
       return
     }
 
-    // ======================================
-    // REVOKE PREVIOUS CLIENT SESSION
-    // ======================================
+    // Revoke an existing client session,
+    // then issue a new HTTP-only session.
+
+    // Deactivate staff push devices before
+    // ending or replacing this login session.
+    // This prevents signed-out staff accounts
+    // from continuing to receive order pushes.
+
+    const previousSession =
+      await getCurrentSession(req)
+
+    if (previousSession?.customer.role === 'STAFF') {
+      await prisma.staffPushDevice.updateMany({
+        where: {
+          staffId: previousSession.customer.id,
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+          revokedAt: new Date(),
+        },
+      })
+    }
 
     await revokeCurrentSession(req)
-
-    // ======================================
-    // CREATE AUTHENTICATED SESSION
-    // ======================================
 
     await createSession(
       customer.id,
       res,
     )
-
-    // ======================================
-    // LOGIN RESPONSE
-    // ======================================
-
-    // Return only the customer details
-    // required by the frontend.
-    //
-    // The role comes directly from
-    // PostgreSQL and is not supplied
-    // or controlled by the browser.
 
     res.status(200).json({
       success: true,
@@ -215,10 +226,6 @@ router.post(
         phone: customer.phone,
         emailVerifiedAt:
           customer.emailVerifiedAt,
-
-        // Required for staff workspace
-        // navigation in the React app.
-
         role: customer.role,
       },
     })
@@ -228,9 +235,6 @@ router.post(
 // ==========================================
 // GET /api/auth/me
 // ==========================================
-
-// Retrieve authenticated customer details
-// from the current HTTP-only session cookie.
 
 router.get('/me', async (req, res) => {
   res.set('Cache-Control', 'no-store')
@@ -246,25 +250,10 @@ router.get('/me', async (req, res) => {
     return
   }
 
-  // ========================================
-  // EXCLUDE INTERNAL ACCOUNT STATE
-  // ========================================
-
-  // getCurrentSession() now selects
-  // role from PostgreSQL.
-  //
-  // Exclude isActive from the response.
-  // Retain the customer role for frontend
-  // navigation and account display.
-
   const {
     isActive,
     ...customer
   } = session.customer
-
-  // ========================================
-  // SESSION RESPONSE
-  // ========================================
 
   res.status(200).json({
     success: true,
@@ -273,8 +262,7 @@ router.get('/me', async (req, res) => {
       customer,
 
       session: {
-        expiresAt:
-          session.expiresAt,
+        expiresAt: session.expiresAt,
       },
     },
   })
@@ -291,10 +279,6 @@ router.post(
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
 
-    // ======================================
-    // REQUIRE TRUSTED REQUEST HEADER
-    // ======================================
-
     if (
       req.get('X-Loyce-Request') !== '1'
     ) {
@@ -306,15 +290,28 @@ router.post(
       return
     }
 
-    // ======================================
-    // REVOKE AUTHENTICATED SESSION
-    // ======================================
+    // Deactivate staff push devices before
+    // ending or replacing this login session.
+    // This prevents signed-out staff accounts
+    // from continuing to receive order pushes.
+
+    const previousSession =
+      await getCurrentSession(req)
+
+    if (previousSession?.customer.role === 'STAFF') {
+      await prisma.staffPushDevice.updateMany({
+        where: {
+          staffId: previousSession.customer.id,
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+          revokedAt: new Date(),
+        },
+      })
+    }
 
     await revokeCurrentSession(req)
-
-    // ======================================
-    // CLEAR SESSION COOKIE
-    // ======================================
 
     clearSessionCookie(res)
 
@@ -324,9 +321,5 @@ router.post(
     })
   },
 )
-
-// ==========================================
-// EXPORT AUTHENTICATION ROUTER
-// ==========================================
 
 export default router

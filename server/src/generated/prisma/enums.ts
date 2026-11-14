@@ -103,3 +103,11 @@ export const ProductAuditAction = {
 } as const
 
 export type ProductAuditAction = (typeof ProductAuditAction)[keyof typeof ProductAuditAction]
+
+
+export const PushPlatform = {
+  ANDROID: 'ANDROID',
+  IOS: 'IOS'
+} as const
+
+export type PushPlatform = (typeof PushPlatform)[keyof typeof PushPlatform]

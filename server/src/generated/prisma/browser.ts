@@ -92,3 +92,8 @@ export type StaffOrderAlertRead = Prisma.StaffOrderAlertReadModel
  * 
  */
 export type OrderEscalationEvent = Prisma.OrderEscalationEventModel
+/**
+ * Model StaffPushDevice
+ * 
+ */
+export type StaffPushDevice = Prisma.StaffPushDeviceModel
