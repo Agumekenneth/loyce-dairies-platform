@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Compact milk-bottle mark for the system-controlled Android launch splash.
+     Keep artwork within the central safe area for Android 12+ icon masking. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Bottle cap and rim. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,20 C43,17.8 44.8,16 47,16 L61,16 C63.2,16 65,17.8 65,20 L65,22 L43,22 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M41,25 L67,25 C69.8,25 72,27.2 72,30 C72,32.8 69.8,35 67,35 L41,35 C38.2,35 36,32.8 36,30 C36,27.2 38.2,25 41,25 Z" />
+
+    <!-- Bottle silhouette and milk wave. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M44,38 L44,45 C44,53 34,59 34,71 L34,85 C34,93 38,97 46,97 L62,97 C70,97 74,93 74,85 L74,71 C74,59 64,53 64,45 L64,38" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.3"
+        android:strokeLineCap="round"
+        android:pathData="M37,75 C47,69 56,81 71,74" />
+</vector>

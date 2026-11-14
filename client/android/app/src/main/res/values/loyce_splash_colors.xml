@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the dark green Loyce Dairies visual identity. -->
+    <color name="loyce_splash_green">#104B34</color>
+</resources>

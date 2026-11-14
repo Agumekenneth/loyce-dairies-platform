@@ -3,7 +3,6 @@
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-        <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
@@ -15,8 +14,11 @@
         <item name="android:background">@null</item>
     </style>
 
-
+    <!-- Branded launch screen for Android 12+ and older Android versions. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="android:windowBackground">@drawable/loyce_splash_background</item>
+        <item name="windowSplashScreenBackground">@color/loyce_splash_green</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/loyce_splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>
