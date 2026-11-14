@@ -42,6 +42,7 @@ import adminProductsRouter from './routes/adminProducts.js'
 // Staff notifications
 import staffNotificationsRouter from './routes/staffNotifications.js'
 import staffPushDevicesRouter from './routes/staffPushDevices.js'
+import staffPushQueueHealthRouter from './routes/staffPushQueueHealth.js'
 
 // Unattended-order monitoring
 import staffOrderAttentionRouter from './routes/staffOrderAttention.js'
@@ -215,6 +216,15 @@ app.use(
 app.use(
   '/api/admin/push-devices',
   staffPushDevicesRouter,
+)
+
+// ==========================================
+// STAFF PUSH DELIVERY QUEUE MONITORING
+// ==========================================
+
+app.use(
+  '/api/admin/push-queue',
+  staffPushQueueHealthRouter,
 )
 
 // ==========================================
