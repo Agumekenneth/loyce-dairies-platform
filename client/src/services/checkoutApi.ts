@@ -1,8 +1,4 @@
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
+import { apiFetch } from './apiClient'
 
 export type FulfillmentMethod = 'PICKUP' | 'DELIVERY'
 
@@ -103,8 +99,8 @@ export async function fetchDeliveryZones():
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/delivery-zones`,
+    response = await apiFetch(
+      `/delivery-zones`,
       {
         method: 'GET',
         headers: {
@@ -130,8 +126,8 @@ export async function submitCheckout(
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/orders/checkout`,
+    response = await apiFetch(
+      `/orders/checkout`,
       {
         method: 'POST',
 
