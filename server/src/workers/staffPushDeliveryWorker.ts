@@ -7,6 +7,13 @@ import {
 import { getMessaging } from 'firebase-admin/messaging'
 import { prisma } from '../lib/prisma.js'
 
+import {
+  MAX_PUSH_ATTEMPTS,
+  isInvalidPushToken,
+  shouldRetryPush,
+  nextPushRetryTime,
+} from './staffPushRetryPolicy.js'
+
 // ==========================================
 // LOYCE DAIRIES
 // PERSISTENT FIREBASE DELIVERY WORKER
@@ -15,7 +22,7 @@ import { prisma } from '../lib/prisma.js'
 const FIREBASE_APP_NAME = 'loyce-staff-push'
 const ORDER_CHANNEL_ID = 'loyce_orders_v1'
 
-const MAX_ATTEMPTS = 5
+const MAX_ATTEMPTS = MAX_PUSH_ATTEMPTS
 const BATCH_SIZE = 10
 const LEASE_MS = 120_000
 const DEFAULT_INTERVAL_MS = 15_000
@@ -85,16 +92,7 @@ function errorCode(error: unknown): string {
 // EXPONENTIAL BACKOFF
 // ==========================================
 
-function nextRetryTime(attempts: number): Date {
-  const baseDelay = Math.min(
-    15_000 * 2 ** Math.max(0, attempts - 1),
-    600_000,
-  )
 
-  const jitter = Math.floor(Math.random() * 5_000)
-
-  return new Date(Date.now() + baseDelay + jitter)
-}
 
 // ==========================================
 // ATOMIC POSTGRESQL JOB CLAIM
@@ -306,11 +304,7 @@ async function processJob(
     // INVALID FIREBASE REGISTRATION TOKEN
     // ======================================
 
-    const invalidToken =
-      code ===
-        'messaging/registration-token-not-registered' ||
-      code ===
-        'messaging/invalid-registration-token'
+    const invalidToken = isInvalidPushToken(code)
 
     if (invalidToken) {
       await prisma.staffPushDevice.updateMany({
@@ -330,17 +324,7 @@ async function processJob(
     // Non-retryable configuration or
     // invalid-target errors.
 
-    const permanentError =
-      invalidToken ||
-      code === 'messaging/invalid-argument' ||
-      code === 'messaging/mismatched-credential' ||
-      code === 'messaging/invalid-package-name' ||
-      code === 'messaging/third-party-auth-error'
-
-    if (
-      permanentError ||
-      job.attempts >= MAX_ATTEMPTS
-    ) {
+    if (!shouldRetryPush(code, job.attempts)) {
       const updated = await finishJob(
         job,
         'FAILED',
@@ -360,7 +344,7 @@ async function processJob(
       {
         code,
         nextAttemptAt:
-          nextRetryTime(job.attempts),
+          nextPushRetryTime(job.attempts),
       },
     )
 
