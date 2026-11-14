@@ -1,8 +1,4 @@
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
+import { apiFetch } from './apiClient'
 
 // ==========================================
 // DELIVERY ZONE TYPES
@@ -65,8 +61,8 @@ async function staffRequest<T>(
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}${endpoint}`,
+    response = await apiFetch(
+      endpoint,
       {
         method,
         credentials: 'include',
