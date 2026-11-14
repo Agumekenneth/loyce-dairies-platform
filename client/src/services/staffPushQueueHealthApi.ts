@@ -1,12 +1,8 @@
+import { apiFetch } from './apiClient'
 // ==========================================
 // LOYCE DAIRIES
 // STAFF PUSH DELIVERY QUEUE HEALTH API
 // ==========================================
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
 
 // ==========================================
 // RESPONSE TYPES
@@ -89,8 +85,8 @@ export async function getStaffPushQueueHealth(
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/admin/push-queue/health`,
+    response = await apiFetch(
+      `/admin/push-queue/health`,
       {
         method: 'GET',
         credentials: 'include',
