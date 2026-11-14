@@ -1,3 +1,4 @@
+import { apiFetch } from './apiClient'
 
 /**
  * Loyce Dairies Platform — Staff Product Management API
@@ -6,10 +7,6 @@
  * Product metadata is managed here. Inventory quantities must be
  * adjusted only through the dedicated inventory API.
  */
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
-).replace(/\/+$/, '')
 
 // -----------------------------------------------------------------------------
 // Domain types
@@ -150,7 +147,7 @@ async function productRequest<T>(
   let response: Response
 
   try {
-    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    response = await apiFetch(endpoint, {
       ...options,
       method,
       headers,
