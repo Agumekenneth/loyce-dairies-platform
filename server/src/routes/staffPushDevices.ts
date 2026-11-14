@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
+import { getTrustedClientOrigins } from '../lib/trustedOrigins.js'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
@@ -102,24 +103,9 @@ const requireTrustedWrite: RequestHandler = (
   res,
   next,
 ) => {
-  const primaryOrigin = new URL(
-    process.env.CLIENT_URL ??
-      'http://localhost:5173',
-  ).origin
-
-  const allowedOrigins = new Set([
-    primaryOrigin,
-  ])
-
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
-  ) {
-    allowedOrigins.add('http://localhost:5173')
-    allowedOrigins.add('http://127.0.0.1')
-    allowedOrigins.add('https://localhost')
-  }
-
+  // Use the same exact origin allowlist as Express CORS.
+  // A valid staff session is still required by requireStaff.
+  const allowedOrigins = getTrustedClientOrigins()
   const origin = req.get('Origin')
 
   if (
