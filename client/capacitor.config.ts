@@ -4,72 +4,116 @@ import type { CapacitorConfig } from '@capacitor/cli'
 /// <reference types="@capacitor/push-notifications" />
 
 // ==========================================
-// LOYCE DAIRIES PLATFORM
+// LOYCE DAIRIES
 // ANDROID AND IOS CONFIGURATION
 // ==========================================
 
-// Enable local Android API access when
-// testing with the emulator or USB phone.
-const isAndroidLocalDevelopment =
-  process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+// Explicit opt-in for store-release builds.
+const isRelease =
+  process.env.LOYCE_MOBILE_RELEASE === '1'
 
-// Physical-phone testing uses ADB reverse
-// and http://127.0.0.1:5000.
-//
-// This option must NEVER be enabled
-// for production or store releases.
-const isUsbPhoneDevelopment =
-  process.env.LOYCE_ANDROID_USB_DEV === '1' &&
+// Development modes are never allowed
+// when building an official release.
+const canUseDevelopmentMode =
+  !isRelease &&
   process.env.NODE_ENV !== 'production'
 
-const config: CapacitorConfig = {
-  // ========================================
-  // APPLICATION IDENTITY
-  // ========================================
+const localDevelopmentRequested =
+  process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
 
+const usbDevelopmentRequested =
+  process.env.LOYCE_ANDROID_USB_DEV === '1'
+
+const stagingDevelopmentRequested =
+  process.env.LOYCE_ANDROID_STAGING_DEV === '1'
+
+// ==========================================
+// RELEASE SAFETY CHECKS
+// ==========================================
+
+if (
+  isRelease &&
+  (
+    localDevelopmentRequested ||
+    usbDevelopmentRequested ||
+    stagingDevelopmentRequested
+  )
+) {
+  throw new Error(
+    'Mobile release cannot use Android ' +
+    'development or staging settings.',
+  )
+}
+
+if (
+  canUseDevelopmentMode &&
+  usbDevelopmentRequested &&
+  stagingDevelopmentRequested
+) {
+  throw new Error(
+    'Choose either USB development ' +
+    'or Railway staging, not both.',
+  )
+}
+
+const isLocalDevelopment =
+  canUseDevelopmentMode &&
+  localDevelopmentRequested
+
+const isUsbDevelopment =
+  canUseDevelopmentMode &&
+  usbDevelopmentRequested
+
+const isStagingDevelopment =
+  canUseDevelopmentMode &&
+  stagingDevelopmentRequested
+
+const STAGING_URL =
+  'https://loyce-api-production.up.railway.app'
+
+// ==========================================
+// CAPACITOR CONFIGURATION
+// ==========================================
+
+const config: CapacitorConfig = {
   appId: 'com.loycedairies.app',
   appName: 'Loyce Dairies',
 
+  // Release apps use bundled React assets.
   webDir: 'dist',
-
-  // ========================================
-  // LOCAL ANDROID WEBVIEW
-  // ========================================
 
   android: {
     allowMixedContent:
-      isAndroidLocalDevelopment ||
-      isUsbPhoneDevelopment,
+      isLocalDevelopment ||
+      isUsbDevelopment,
   },
 
   // ========================================
-  // PHYSICAL ANDROID PHONE
+  // DEVELOPMENT-ONLY WEBVIEW SETTINGS
   // ========================================
 
-  // Development only:
-  //
-  // App: http://127.0.0.1
-  // API: http://127.0.0.1:5000
-  //
-  // The matching scheme and hostname
-  // allow SameSite=Lax session cookies
-  // to be sent on authenticated requests.
-  //
-  // The backend still enforces CORS,
-  // origin validation and authentication.
-
-  ...(isUsbPhoneDevelopment
+  ...(isStagingDevelopment
     ? {
+        // Existing working Railway staging.
+        // Never included in a release build.
         server: {
-          hostname: '127.0.0.1',
-          androidScheme: 'http',
-          cleartext: true,
+          url: STAGING_URL,
+          cleartext: false,
         },
       }
-    : {}),
+    : isUsbDevelopment
+      ? {
+          // Existing ADB USB testing mode.
+          server: {
+            hostname: '127.0.0.1',
+            androidScheme: 'http',
+            cleartext: true,
+          },
+        }
+      : {}),
 
   // ========================================
-  // PUSH NOTIFICATIONS
+  // NATIVE NOTIFICATION SETTINGS
   // ========================================
 
   plugins: {

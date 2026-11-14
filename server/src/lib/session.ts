@@ -10,8 +10,8 @@ import type {
 import { prisma } from './prisma.js'
 
 // ==========================================
-// LOYCE DAIRIES PLATFORM
-// AUTHENTICATED SESSION MANAGEMENT
+// LOYCE DAIRIES
+// WEB AND MOBILE SESSION MANAGEMENT
 // ==========================================
 
 const isProduction =
@@ -20,8 +20,11 @@ const isProduction =
 const SESSION_DURATION_MS =
   24 * 60 * 60 * 1000
 
+const SESSION_TOKEN_PATTERN =
+  /^[A-Za-z0-9_-]{43}$/
+
 // ==========================================
-// SESSION COOKIE CONFIGURATION
+// BROWSER SESSION COOKIE
 // ==========================================
 
 export const SESSION_COOKIE_NAME =
@@ -37,7 +40,7 @@ const cookieOptions: CookieOptions = {
 }
 
 // ==========================================
-// HASH SESSION TOKEN
+// SESSION TOKEN HASHING
 // ==========================================
 
 function hashSessionToken(
@@ -49,38 +52,17 @@ function hashSessionToken(
 }
 
 // ==========================================
-// READ SESSION COOKIE
+// ISSUE A DATABASE-BACKED SESSION
 // ==========================================
 
-function readSessionToken(
-  req: Request,
-): string | null {
-  const token: unknown =
-    req.cookies?.[SESSION_COOKIE_NAME]
-
-  if (
-    typeof token !== 'string' ||
-    !/^[A-Za-z0-9_-]{43}$/.test(token)
-  ) {
-    return null
-  }
-
-  return token
-}
-
-// ==========================================
-// CREATE AUTHENTICATED SESSION
-// ==========================================
-
-export async function createSession(
+async function issueSession(
   customerId: string,
-  res: Response,
-): Promise<void> {
+): Promise<{
+  token: string
+  expiresAt: Date
+}> {
   const token =
     randomBytes(32).toString('base64url')
-
-  const tokenHash =
-    hashSessionToken(token)
 
   const expiresAt = new Date(
     Date.now() + SESSION_DURATION_MS,
@@ -89,10 +71,27 @@ export async function createSession(
   await prisma.customerSession.create({
     data: {
       customerId,
-      tokenHash,
+      tokenHash: hashSessionToken(token),
       expiresAt,
     },
   })
+
+  return {
+    token,
+    expiresAt,
+  }
+}
+
+// ==========================================
+// BROWSER LOGIN SESSION
+// ==========================================
+
+export async function createSession(
+  customerId: string,
+  res: Response,
+): Promise<void> {
+  const { token } =
+    await issueSession(customerId)
 
   res.cookie(
     SESSION_COOKIE_NAME,
@@ -102,6 +101,66 @@ export async function createSession(
       maxAge: SESSION_DURATION_MS,
     },
   )
+}
+
+// ==========================================
+// NATIVE MOBILE LOGIN SESSION
+// ==========================================
+
+// Reserved for the authenticated mobile
+// login endpoint implemented next.
+//
+// The returned token must be transmitted
+// over HTTPS and stored in Android Keystore
+// or iOS Keychain-backed secure storage.
+//
+// Never put this token in localStorage,
+// application logs, or a Git repository.
+
+export async function createMobileSession(
+  customerId: string,
+): Promise<{
+  token: string
+  expiresAt: Date
+}> {
+  return issueSession(customerId)
+}
+
+// ==========================================
+// READ BROWSER OR MOBILE TOKEN
+// ==========================================
+
+function readSessionToken(
+  req: Request,
+): string | null {
+  const authorization =
+    req.get('Authorization')
+
+  // When an Authorization header is
+  // supplied, it takes precedence over
+  // cookies. Invalid bearer credentials
+  // must not fall back to cookie auth.
+
+  if (authorization !== undefined) {
+    const match =
+      /^Bearer ([A-Za-z0-9_-]{43})$/i.exec(
+        authorization,
+      )
+
+    return match?.[1] ?? null
+  }
+
+  const token: unknown =
+    req.cookies?.[SESSION_COOKIE_NAME]
+
+  if (
+    typeof token !== 'string' ||
+    !SESSION_TOKEN_PATTERN.test(token)
+  ) {
+    return null
+  }
+
+  return token
 }
 
 // ==========================================
@@ -131,16 +190,7 @@ export async function getCurrentSession(
             email: true,
             phone: true,
             emailVerifiedAt: true,
-
-            // Required for frontend
-            // staff workspace visibility.
-            //
-            // Always retrieved from
-            // PostgreSQL, never from
-            // a browser-supplied role.
-
             role: true,
-
             isActive: true,
             createdAt: true,
           },
@@ -152,13 +202,9 @@ export async function getCurrentSession(
     return null
   }
 
-  // Reject revoked sessions.
-
   if (session.revokedAt !== null) {
     return null
   }
-
-  // Reject expired sessions.
 
   if (
     session.expiresAt.getTime() <=
@@ -166,8 +212,6 @@ export async function getCurrentSession(
   ) {
     return null
   }
-
-  // Reject inactive customer accounts.
 
   if (!session.customer.isActive) {
     return null
@@ -202,7 +246,7 @@ export async function revokeCurrentSession(
 }
 
 // ==========================================
-// CLEAR SESSION COOKIE
+// CLEAR BROWSER SESSION COOKIE
 // ==========================================
 
 export function clearSessionCookie(

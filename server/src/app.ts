@@ -16,7 +16,11 @@ import type { ErrorRequestHandler } from 'express'
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
-// MULTI-DEVICE LOCAL DEVELOPMENT
+//
+// - Website and native mobile origins
+// - Controlled mobile API activation
+// - Existing REST routes
+// - Production React frontend hosting
 // ==========================================
 
 // Public product catalogue
@@ -62,8 +66,8 @@ app.disable('x-powered-by')
 // FRONTEND ORIGIN CONFIGURATION
 // ==========================================
 
-// Production must explicitly configure
-// its authorized frontend origin.
+// Production requires the authorized
+// browser frontend origin.
 
 if (
   isProduction &&
@@ -81,27 +85,44 @@ const clientUrl =
 const clientOrigin = new URL(clientUrl).origin
 
 // ==========================================
-// MULTI-DEVICE DEVELOPMENT ORIGINS
+// MOBILE API ACTIVATION
 // ==========================================
 
-// Support simultaneous testing using:
+// Native cross-origin API access remains
+// disabled until explicitly enabled.
 //
-// MacBook browser:
-// http://localhost:5173
+// This prevents accidentally activating
+// incomplete mobile authentication when
+// unrelated backend changes are deployed.
+
+const nativeMobileEnabled =
+  process.env.LOYCE_NATIVE_MOBILE_ENABLED === '1'
+
+// Capacitor bundled application origins.
 //
-// Physical Android phone:
-// http://127.0.0.1
+// Android: https://localhost
+// iOS: capacitor://localhost
 //
-// Android emulator:
-// https://localhost
-//
-// Additional development origins are
-// permitted only in non-production mode
-// when explicitly enabled.
+// These origins are not proof that a
+// request came from a genuine mobile app.
+// Backend authentication and authorization
+// remain mandatory.
+
+const nativeOrigins = [
+  'https://localhost',
+  'capacitor://localhost',
+]
+
+// ==========================================
+// LOCAL DEVELOPMENT ORIGINS
+// ==========================================
 
 const isAndroidLocalDevelopment =
   !isProduction &&
   process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+// Preserve the existing desktop, USB,
+// and emulator development behavior.
 
 const allowedClientOrigins = new Set<string>([
   clientOrigin,
@@ -122,13 +143,33 @@ if (isAndroidLocalDevelopment) {
 }
 
 // ==========================================
+// ENABLE NATIVE APPLICATION ORIGINS
+// ==========================================
+
+if (nativeMobileEnabled) {
+  for (const origin of nativeOrigins) {
+    allowedClientOrigins.add(origin)
+  }
+}
+
+// ==========================================
 // CORS
 // ==========================================
+
+// Explicit origins only.
+//
+// Do not use origin: '*' or origin: true.
+//
+// Bearer authorization headers are handled
+// by the browser's CORS preflight process.
+// Individual routes still enforce their
+// own authentication and write protections.
 
 app.use(
   cors({
     origin: [...allowedClientOrigins],
     credentials: true,
+    optionsSuccessStatus: 204,
   }),
 )
 
@@ -210,7 +251,7 @@ app.use(
 )
 
 // ==========================================
-// FIREBASE STAFF PUSH-DEVICE REGISTRATION
+// FIREBASE STAFF PUSH DEVICE REGISTRATION
 // ==========================================
 
 app.use(
@@ -219,7 +260,7 @@ app.use(
 )
 
 // ==========================================
-// STAFF PUSH DELIVERY QUEUE MONITORING
+// STAFF PUSH DELIVERY QUEUE
 // ==========================================
 
 app.use(
@@ -276,8 +317,6 @@ if (isProduction) {
     serverDirectory,
     '../../client/dist',
   )
-
-  // Serve compiled React frontend assets.
 
   app.use(
     express.static(clientDistDirectory, {

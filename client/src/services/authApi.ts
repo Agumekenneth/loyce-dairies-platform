@@ -1,27 +1,19 @@
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
+import {
+  clearMobileSessionToken,
+  getMobileSessionToken,
+  isBundledNativeMobileApp,
+  saveMobileSessionToken,
+} from './mobileSessionStorage'
 
 // ==========================================
-// LOYCE DAIRIES PLATFORM
-// CUSTOMER AUTHENTICATION API
-// STAFF ROLE SUPPORT
-// MILESTONE 4.7.3
-// ==========================================
-
-// ==========================================
-// CUSTOMER ROLES
+// LOYCE DAIRIES
+// WEB AND NATIVE MOBILE AUTHENTICATION
 // ==========================================
 
 export type CustomerRole =
   | 'CUSTOMER'
   | 'STAFF'
-
-// ==========================================
-// CUSTOMER TYPES
-// ==========================================
 
 export type Customer = {
   id: string
@@ -29,31 +21,13 @@ export type Customer = {
   email: string
   phone: string | null
   emailVerifiedAt: string | null
-
-  // The authenticated customer's role
-  // is returned by the backend.
-  //
-  // This supports role-aware frontend
-  // navigation and staff workspace links.
-  //
-  // Backend authorization remains
-  // responsible for enforcing permissions.
-
   role: CustomerRole
 }
-
-// ==========================================
-// LOGIN CREDENTIALS
-// ==========================================
 
 export type LoginCredentials = {
   email: string
   password: string
 }
-
-// ==========================================
-// REGISTRATION DETAILS
-// ==========================================
 
 export type RegistrationDetails = {
   fullName: string
@@ -61,10 +35,6 @@ export type RegistrationDetails = {
   phone?: string
   password: string
 }
-
-// ==========================================
-// API RESPONSE TYPES
-// ==========================================
 
 type ApiResponse<T> = {
   success: boolean
@@ -74,26 +44,80 @@ type ApiResponse<T> = {
 
 type SessionResponse = {
   customer: Customer
-
   session: {
     expiresAt: string
   }
 }
 
+type MobileLoginResponse = {
+  customer: Customer
+  session: {
+    accessToken: string
+    expiresAt: string
+  }
+}
+
 // ==========================================
-// COMMON API REQUEST
+// API ADDRESS
 // ==========================================
 
-async function authRequest<T>(
+function getApiBaseUrl(): string {
+  const configured = (
+    import.meta.env.VITE_API_BASE_URL ??
+    'http://localhost:5000/api'
+  ).replace(/\/+$/, '')
+
+  // A bundled mobile app must use an
+  // explicit HTTPS backend address.
+  //
+  // The correct URL will be supplied
+  // during the native release build.
+
+  if (isBundledNativeMobileApp()) {
+    let url: URL
+
+    try {
+      url = new URL(configured)
+    } catch {
+      throw new Error(
+        'The mobile API requires an absolute HTTPS URL.',
+      )
+    }
+
+    if (
+      url.protocol !== 'https:' ||
+      !url.hostname ||
+      url.pathname !== '/api' ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      throw new Error(
+        'The mobile API address must be a valid HTTPS /api endpoint.',
+      )
+    }
+  }
+
+  return configured
+}
+
+// ==========================================
+// COMMON HTTP REQUEST
+// ==========================================
+
+async function sendRequest(
   endpoint: string,
   options: RequestInit = {},
-): Promise<ApiResponse<T>> {
-  const headers = new Headers(options.headers)
+  mobileToken?: string,
+): Promise<Response> {
+  const native =
+    isBundledNativeMobileApp()
 
-  headers.set(
-    'Accept',
-    'application/json',
-  )
+  const headers =
+    new Headers(options.headers)
+
+  headers.set('Accept', 'application/json')
 
   if (options.body) {
     headers.set(
@@ -102,24 +126,22 @@ async function authRequest<T>(
     )
   }
 
-  let response: Response
-
-  // ========================================
-  // SEND AUTHENTICATED REQUEST
-  // ========================================
+  if (mobileToken) {
+    headers.set(
+      'Authorization',
+      `Bearer ${mobileToken}`,
+    )
+  }
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}${endpoint}`,
+    return await fetch(
+      `${getApiBaseUrl()}${endpoint}`,
       {
         ...options,
-
         headers,
-
-        // Send the HTTP-only session cookie.
-        credentials: 'include',
-
-        // Avoid caching authentication state.
+        credentials: native
+          ? 'omit'
+          : 'include',
         cache: 'no-store',
       },
     )
@@ -128,34 +150,30 @@ async function authRequest<T>(
       'Unable to connect to the Loyce Dairies server.',
     )
   }
+}
 
-  // ========================================
-  // PARSE RESPONSE
-  // ========================================
+// ==========================================
+// RESPONSE PARSING
+// ==========================================
 
+async function readResponse<T>(
+  response: Response,
+): Promise<ApiResponse<T>> {
   let result: ApiResponse<T>
 
   try {
-    result = (
-      await response.json()
-    ) as ApiResponse<T>
+    result =
+      await response.json() as ApiResponse<T>
   } catch {
     throw new Error(
       'The authentication server returned an invalid response.',
     )
   }
 
-  // ========================================
-  // HANDLE API ERRORS
-  // ========================================
-
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
       result.message ??
-        `Request failed with status ${response.status}`,
+      `Request failed with status ${response.status}`,
     )
   }
 
@@ -163,172 +181,225 @@ async function authRequest<T>(
 }
 
 // ==========================================
-// CUSTOMER REGISTRATION
-//
-// POST /api/auth/register
+// ACCOUNT REGISTRATION
 // ==========================================
 
 export async function registerCustomer(
   details: RegistrationDetails,
 ): Promise<Customer> {
-  const response =
-    await authRequest<Customer>(
-      '/auth/register',
-      {
-        method: 'POST',
+  const response = await sendRequest(
+    '/auth/register',
+    {
+      method: 'POST',
+      body: JSON.stringify(details),
+    },
+  )
 
-        body: JSON.stringify(
-          details,
-        ),
-      },
-    )
+  const result =
+    await readResponse<Customer>(response)
 
-  if (!response.data) {
+  if (!result.data) {
     throw new Error(
       'Registration response is incomplete.',
     )
   }
 
-  // Registration does not automatically
-  // authenticate the newly created account.
-
-  return response.data
+  return result.data
 }
 
 // ==========================================
-// CUSTOMER LOGIN
-//
-// POST /api/auth/login
+// WEBSITE AND MOBILE LOGIN
 // ==========================================
 
 export async function loginCustomer(
   credentials: LoginCredentials,
 ): Promise<Customer> {
-  const response =
-    await authRequest<Customer>(
+  // Preserve the existing website and
+  // Railway staging authentication.
+
+  if (!isBundledNativeMobileApp()) {
+    const response = await sendRequest(
       '/auth/login',
       {
         method: 'POST',
-
-        body: JSON.stringify(
-          credentials,
-        ),
+        body: JSON.stringify(credentials),
       },
     )
 
-  if (!response.data) {
+    const result =
+      await readResponse<Customer>(response)
+
+    if (!result.data) {
+      throw new Error(
+        'Login response is incomplete.',
+      )
+    }
+
+    return result.data
+  }
+
+  // ========================================
+  // NATIVE ANDROID / IOS LOGIN
+  // ========================================
+
+  const response = await sendRequest(
+    '/auth/mobile/login',
+    {
+      method: 'POST',
+      headers: {
+        'X-Loyce-Request': '1',
+      },
+      body: JSON.stringify(credentials),
+    },
+  )
+
+  const result =
+    await readResponse<MobileLoginResponse>(
+      response,
+    )
+
+  const customer =
+    result.data?.customer
+
+  const accessToken =
+    result.data?.session?.accessToken
+
+  if (
+    !customer ||
+    typeof accessToken !== 'string'
+  ) {
     throw new Error(
-      'Login response is incomplete.',
+      'Mobile login response is incomplete.',
     )
   }
 
-  // The backend now includes:
-  //
-  // role: 'CUSTOMER' | 'STAFF'
-  //
-  // AuthContext stores this customer
-  // object after successful login.
+  // Store credentials only in native
+  // secure storage, never localStorage.
 
-  return response.data
+  try {
+    await saveMobileSessionToken(accessToken)
+  } catch {
+    // Best-effort revocation if secure
+    // storage fails. Do not expose tokens.
+
+    try {
+      await sendRequest(
+        '/auth/mobile/logout',
+        {
+          method: 'POST',
+          headers: {
+            'X-Loyce-Request': '1',
+          },
+        },
+        accessToken,
+      )
+    } catch {
+      // The session will also expire
+      // according to server policy.
+    }
+
+    throw new Error(
+      'Unable to securely save your mobile session.',
+    )
+  }
+
+  return customer
 }
 
 // ==========================================
-// CURRENT CUSTOMER SESSION
-//
-// GET /api/auth/me
+// CURRENT SESSION
 // ==========================================
 
 export async function getCurrentCustomer():
   Promise<Customer | null> {
-  let response: Response
+  const native =
+    isBundledNativeMobileApp()
 
-  try {
-    response = await fetch(
-      `${API_BASE_URL}/auth/me`,
-      {
-        method: 'GET',
+  let mobileToken: string | undefined
 
-        credentials: 'include',
-        cache: 'no-store',
+  if (native) {
+    const storedToken =
+      await getMobileSessionToken()
 
-        headers: {
-          Accept: 'application/json',
-        },
-      },
-    )
-  } catch {
-    throw new Error(
-      'Unable to connect to the Loyce Dairies server.',
-    )
+    if (!storedToken) {
+      return null
+    }
+
+    mobileToken = storedToken
   }
 
-  // ========================================
-  // HANDLE GUEST SESSION
-  // ========================================
-
-  // HTTP 401 indicates that no valid
-  // authenticated session exists.
+  const response = await sendRequest(
+    '/auth/me',
+    { method: 'GET' },
+    mobileToken,
+  )
 
   if (response.status === 401) {
+    if (native) {
+      await clearMobileSessionToken()
+    }
+
     return null
   }
 
-  // ========================================
-  // PARSE SESSION RESPONSE
-  // ========================================
+  const result =
+    await readResponse<SessionResponse>(
+      response,
+    )
 
-  let result: ApiResponse<SessionResponse>
-
-  try {
-    result = (
-      await response.json()
-    ) as ApiResponse<SessionResponse>
-  } catch {
+  if (!result.data?.customer) {
     throw new Error(
-      'Unable to read the customer session response.',
+      'Unable to verify the customer session.',
     )
   }
-
-  if (
-    !response.ok ||
-    !result.success ||
-    !result.data?.customer
-  ) {
-    throw new Error(
-      result.message ??
-        'Unable to verify the customer session.',
-    )
-  }
-
-  // ========================================
-  // RETURN AUTHENTICATED CUSTOMER
-  // ========================================
-
-  // The backend is the source of truth
-  // for customer identity and role.
-  //
-  // For staff accounts, the response
-  // includes role: 'STAFF'.
 
   return result.data.customer
 }
 
 // ==========================================
-// CUSTOMER LOGOUT
-//
-// POST /api/auth/logout
+// WEBSITE AND MOBILE LOGOUT
 // ==========================================
 
 export async function logoutCustomer():
   Promise<void> {
-  await authRequest<void>(
-    '/auth/logout',
+  if (!isBundledNativeMobileApp()) {
+    const response = await sendRequest(
+      '/auth/logout',
+      {
+        method: 'POST',
+        headers: {
+          'X-Loyce-Request': '1',
+        },
+      },
+    )
+
+    await readResponse<void>(response)
+
+    return
+  }
+
+  const mobileToken =
+    await getMobileSessionToken()
+
+  if (!mobileToken) {
+    return
+  }
+
+  const response = await sendRequest(
+    '/auth/mobile/logout',
     {
       method: 'POST',
-
       headers: {
         'X-Loyce-Request': '1',
       },
     },
+    mobileToken,
   )
+
+  await readResponse<void>(response)
+
+  // Delete the local credential after
+  // server-side revocation succeeds.
+
+  await clearMobileSessionToken()
 }
