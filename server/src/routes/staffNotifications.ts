@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
+import { getTrustedClientOrigins } from '../lib/trustedOrigins.js'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
@@ -113,12 +114,9 @@ const requireTrustedWrite: RequestHandler = (
   res,
   next,
 ) => {
-  const allowedOrigin = new URL(
-    process.env.CLIENT_URL ??
-      'http://localhost:5173',
-  ).origin
+  const allowedOrigins = getTrustedClientOrigins()
 
-  if (req.get('Origin') !== allowedOrigin) {
+  if (!req.get('Origin') || !allowedOrigins.has(req.get('Origin')!)) {
     res.status(403).json({
       success: false,
       message: 'Request origin is not allowed.',
