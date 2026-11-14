@@ -1,4 +1,3 @@
-
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
@@ -13,14 +12,19 @@ import {
 import { fileURLToPath } from 'node:url'
 import type { ErrorRequestHandler } from 'express'
 
+import {
+  getTrustedClientOrigins,
+} from './lib/trustedOrigins.js'
+
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
 //
-// - Website and native mobile origins
-// - Controlled mobile API activation
-// - Existing REST routes
-// - Production React frontend hosting
+// - Centralized trusted origins
+// - Website and native mobile support
+// - Existing REST API routes
+// - Firebase notification services
+// - Production frontend hosting
 // ==========================================
 
 // Public product catalogue
@@ -63,107 +67,26 @@ const isProduction =
 app.disable('x-powered-by')
 
 // ==========================================
-// FRONTEND ORIGIN CONFIGURATION
+// CENTRALIZED TRUSTED ORIGINS
 // ==========================================
 
-// Production requires the authorized
-// browser frontend origin.
-
-if (
-  isProduction &&
-  !process.env.CLIENT_URL
-) {
-  throw new Error(
-    'CLIENT_URL must be configured in production.',
-  )
-}
-
-const clientUrl =
-  process.env.CLIENT_URL ||
-  'http://localhost:5173'
-
-const clientOrigin = new URL(clientUrl).origin
-
-// ==========================================
-// MOBILE API ACTIVATION
-// ==========================================
-
-// Native cross-origin API access remains
-// disabled until explicitly enabled.
+// Origin policy is defined in:
+// server/src/lib/trustedOrigins.ts
 //
-// This prevents accidentally activating
-// incomplete mobile authentication when
-// unrelated backend changes are deployed.
-
-const nativeMobileEnabled =
-  process.env.LOYCE_NATIVE_MOBILE_ENABLED === '1'
-
-// Capacitor bundled application origins.
+// Production native mobile origins are
+// controlled by:
+// LOYCE_NATIVE_MOBILE_ENABLED=1
 //
-// Android: https://localhost
-// iOS: capacitor://localhost
-//
-// These origins are not proof that a
-// request came from a genuine mobile app.
-// Backend authentication and authorization
-// remain mandatory.
+// CORS is not authentication.
+// Protected endpoints must independently
+// validate sessions and permissions.
 
-const nativeOrigins = [
-  'https://localhost',
-  'capacitor://localhost',
-]
-
-// ==========================================
-// LOCAL DEVELOPMENT ORIGINS
-// ==========================================
-
-const isAndroidLocalDevelopment =
-  !isProduction &&
-  process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
-
-// Preserve the existing desktop, USB,
-// and emulator development behavior.
-
-const allowedClientOrigins = new Set<string>([
-  clientOrigin,
-])
-
-if (isAndroidLocalDevelopment) {
-  allowedClientOrigins.add(
-    'http://localhost:5173',
-  )
-
-  allowedClientOrigins.add(
-    'http://127.0.0.1',
-  )
-
-  allowedClientOrigins.add(
-    'https://localhost',
-  )
-}
-
-// ==========================================
-// ENABLE NATIVE APPLICATION ORIGINS
-// ==========================================
-
-if (nativeMobileEnabled) {
-  for (const origin of nativeOrigins) {
-    allowedClientOrigins.add(origin)
-  }
-}
+const allowedClientOrigins =
+  getTrustedClientOrigins()
 
 // ==========================================
 // CORS
 // ==========================================
-
-// Explicit origins only.
-//
-// Do not use origin: '*' or origin: true.
-//
-// Bearer authorization headers are handled
-// by the browser's CORS preflight process.
-// Individual routes still enforce their
-// own authentication and write protections.
 
 app.use(
   cors({
@@ -251,7 +174,7 @@ app.use(
 )
 
 // ==========================================
-// FIREBASE STAFF PUSH DEVICE REGISTRATION
+// STAFF PUSH DEVICE REGISTRATION
 // ==========================================
 
 app.use(
@@ -260,7 +183,7 @@ app.use(
 )
 
 // ==========================================
-// STAFF PUSH DELIVERY QUEUE
+// FIREBASE PUSH DELIVERY MONITORING
 // ==========================================
 
 app.use(
@@ -317,6 +240,8 @@ if (isProduction) {
     serverDirectory,
     '../../client/dist',
   )
+
+  // Serve compiled frontend assets.
 
   app.use(
     express.static(clientDistDirectory, {

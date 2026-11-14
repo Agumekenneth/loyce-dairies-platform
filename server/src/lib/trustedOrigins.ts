@@ -1,70 +1,91 @@
 /**
  * LOYCE DAIRIES PLATFORM
- * Trusted frontend origins
+ * CENTRALIZED TRUSTED ORIGIN CONFIGURATION
  *
- * Shared configuration for:
- * - Express CORS
- * - Authentication requests
- * - Staff operations
- * - Customer checkout
- * - Android and iOS mobile applications
+ * Supports:
+ * - Production website
+ * - Android application
+ * - iOS application
+ * - Local development
+ *
+ * Native access is controlled using:
+ * LOYCE_NATIVE_MOBILE_ENABLED
  */
 
-const PRODUCTION_MOBILE_ORIGINS = new Set([
+const NATIVE_MOBILE_ORIGINS = [
   'https://localhost',
   'capacitor://localhost',
-])
+] as const
+
+// ==========================================
+// APPLICATION ENVIRONMENT
+// ==========================================
+
+function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production'
+}
+
+function isNativeMobileEnabled(): boolean {
+  return (
+    process.env.LOYCE_NATIVE_MOBILE_ENABLED === '1'
+  )
+}
+
+// ==========================================
+// TRUSTED ORIGIN CONFIGURATION
+// ==========================================
 
 export function getTrustedClientOrigins(): Set<string> {
-  const isProduction =
-    process.env.NODE_ENV === 'production'
+  const production = isProduction()
 
-  const configuredClientUrl = process.env.CLIENT_URL
+  const configuredClientUrl =
+    process.env.CLIENT_URL
 
-  if (isProduction && !configuredClientUrl) {
+  if (production && !configuredClientUrl) {
     throw new Error(
       'CLIENT_URL must be configured in production.',
     )
   }
 
   const clientOrigin = new URL(
-    configuredClientUrl ?? 'http://localhost:5173',
+    configuredClientUrl ??
+      'http://localhost:5173',
   ).origin
 
-  const origins = new Set<string>([
+  const allowedOrigins = new Set<string>([
     clientOrigin,
   ])
 
-  // Preserve existing local development access.
+  // ========================================
+  // LOCAL DEVELOPMENT
+  // ========================================
+
   if (
-    !isProduction &&
+    !production &&
     process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
   ) {
-    origins.add('http://localhost:5173')
-    origins.add('http://127.0.0.1')
-    origins.add('https://localhost')
+    allowedOrigins.add(
+      'http://localhost:5173',
+    )
+
+    allowedOrigins.add(
+      'http://127.0.0.1',
+    )
+
+    allowedOrigins.add(
+      'https://localhost',
+    )
   }
 
-  // Allow explicitly configured production
-  // Android and iOS WebView origins.
-  if (isProduction) {
-    const mobileOrigins = (
-      process.env.LOYCE_MOBILE_APP_ORIGINS ?? ''
-    )
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean)
+  // ========================================
+  // NATIVE MOBILE APPLICATIONS
+  // ========================================
 
-    for (const origin of mobileOrigins) {
-      if (!PRODUCTION_MOBILE_ORIGINS.has(origin)) {
-        throw new Error(
-          `Unsupported production mobile origin: ${origin}`,
-        )
-      }
-
-      origins.add(origin)
+  if (isNativeMobileEnabled()) {
+    for (const origin of NATIVE_MOBILE_ORIGINS) {
+      allowedOrigins.add(origin)
     }
   }
 
-  return origins
+  return allowedOrigins
 }
