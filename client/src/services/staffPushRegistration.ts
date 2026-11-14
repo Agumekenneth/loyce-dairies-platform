@@ -9,6 +9,8 @@ import {
   PushNotifications,
 } from '@capacitor/push-notifications'
 
+import { apiFetch } from './apiClient'
+
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // STAFF FIREBASE PUSH REGISTRATION
@@ -32,15 +34,6 @@ export const STAFF_ORDER_CHANNEL_ID =
 
 const ORDER_NOTIFICATION_SOUND =
   'loyce_dairies_new_order_chime.wav'
-
-// ==========================================
-// API CONFIGURATION
-// ==========================================
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
 
 // ==========================================
 // CUSTOM ERROR
@@ -257,20 +250,14 @@ async function saveStaffPushToken(
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/admin/push-devices`,
+    response = await apiFetch(
+      '/admin/push-devices',
       {
         method: 'POST',
-
-        credentials: 'include',
-        cache: 'no-store',
-
         headers: {
-          Accept: 'application/json',
           'Content-Type': 'application/json',
           'X-Loyce-Request': '1',
         },
-
         body: JSON.stringify({
           token,
           platform: 'ANDROID',
