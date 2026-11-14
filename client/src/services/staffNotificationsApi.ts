@@ -1,3 +1,4 @@
+import { apiFetch } from './apiClient'
 
 /**
  * LOYCE DAIRIES PLATFORM
@@ -21,11 +22,6 @@ import type {
 // ==========================================
 // API CONFIGURATION
 // ==========================================
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
 
 // ==========================================
 // NOTIFICATION DOMAIN TYPES
@@ -210,8 +206,8 @@ async function notificationRequest<
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}${endpoint}`,
+    response = await apiFetch(
+      endpoint,
       {
         ...options,
         method,
