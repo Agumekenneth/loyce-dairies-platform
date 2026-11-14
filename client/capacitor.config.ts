@@ -5,32 +5,75 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
-// MILESTONE 4.15
-// ANDROID AND IOS APPLICATION CONFIGURATION
+// ANDROID AND IOS CONFIGURATION
 // ==========================================
 
-const config: CapacitorConfig = {
-  // Native application identifier.
-  // Confirm the final identifier before
-  // Firebase registration or store release.
-  appId: 'com.loycedairies.app',
+// Enable local Android API access when
+// testing with the emulator or USB phone.
+const isAndroidLocalDevelopment =
+  process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
 
-  // Display name on Android and iOS.
+// Physical-phone testing uses ADB reverse
+// and http://127.0.0.1:5000.
+//
+// This option must NEVER be enabled
+// for production or store releases.
+const isUsbPhoneDevelopment =
+  process.env.LOYCE_ANDROID_USB_DEV === '1' &&
+  process.env.NODE_ENV !== 'production'
+
+const config: CapacitorConfig = {
+  // ========================================
+  // APPLICATION IDENTITY
+  // ========================================
+
+  appId: 'com.loycedairies.app',
   appName: 'Loyce Dairies',
 
-  // Vite production build directory.
   webDir: 'dist',
 
   // ========================================
-  // NATIVE PUSH NOTIFICATION PRESENTATION
+  // LOCAL ANDROID WEBVIEW
+  // ========================================
+
+  android: {
+    allowMixedContent:
+      isAndroidLocalDevelopment ||
+      isUsbPhoneDevelopment,
+  },
+
+  // ========================================
+  // PHYSICAL ANDROID PHONE
+  // ========================================
+
+  // Development only:
+  //
+  // App: http://127.0.0.1
+  // API: http://127.0.0.1:5000
+  //
+  // The matching scheme and hostname
+  // allow SameSite=Lax session cookies
+  // to be sent on authenticated requests.
+  //
+  // The backend still enforces CORS,
+  // origin validation and authentication.
+
+  ...(isUsbPhoneDevelopment
+    ? {
+        server: {
+          hostname: '127.0.0.1',
+          androidScheme: 'http',
+          cleartext: true,
+        },
+      }
+    : {}),
+
+  // ========================================
+  // PUSH NOTIFICATIONS
   // ========================================
 
   plugins: {
     PushNotifications: {
-      // Configure foreground presentation.
-      // Background notifications additionally
-      // require native permissions, Firebase,
-      // APNs setup and server-side delivery.
       presentationOptions: [
         'badge',
         'sound',
