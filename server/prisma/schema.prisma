@@ -914,3 +914,25 @@ model AccountDeletionRequest {
 
   @@index([status, requestedAt])
 }
+
+
+// ==========================================
+// PRIVACY-MINIMIZED ACCOUNT ERASURE AUDIT
+//
+// Independent of Customer, so a successful
+// deletion does not erase proof of fulfilment.
+// Request ID is a pseudonymous correlation key;
+// do not store email, name or customer ID here.
+// This audit records local DB fulfilment ONLY,
+// not deletion from backups or external services.
+// ==========================================
+
+model AccountErasureAudit {
+  id               String   @id @default(cuid())
+  requestId        String   @unique
+  requestedAt      DateTime
+  completedAt      DateTime @default(now())
+  anonymizedOrders Int
+
+  @@index([completedAt])
+}

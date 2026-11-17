@@ -64,7 +64,9 @@ export async function eraseRequestedCustomerAccount(
     const request = await tx.accountDeletionRequest.findUnique({
       where: { customerId },
       select: {
+        id: true,
         status: true,
+        requestedAt: true,
       },
     })
 
@@ -177,6 +179,20 @@ export async function eraseRequestedCustomerAccount(
     // account, and the transaction rolls back.
     await tx.customer.delete({
       where: { id: customerId },
+    })
+
+    // This independent audit entry is committed
+    // atomically with the deletion. It contains
+    // no customer identity or contact information.
+    // Its request ID may still be correlated with
+    // external operational logs, so access to
+    // those logs must remain restricted.
+    await tx.accountErasureAudit.create({
+      data: {
+        requestId: request.id,
+        requestedAt: request.requestedAt,
+        anonymizedOrders: orders.length,
+      },
     })
 
     return {

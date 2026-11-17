@@ -40,6 +40,7 @@ const { prisma } = await import('../src/lib/prisma.js')
 const testId = randomUUID()
 const createdCustomerIds: string[] = []
 const createdOrderIds: string[] = []
+const createdRequestIds: string[] = []
 
 function assert(
   condition: unknown,
@@ -104,10 +105,12 @@ async function createDisposableCustomer(label: string) {
 }
 
 async function createRequest(customerId: string) {
-  return prisma.accountDeletionRequest.create({
+  const request = await prisma.accountDeletionRequest.create({
     data: { customerId },
     select: { id: true },
   })
+  createdRequestIds.push(request.id)
+  return request
 }
 
 let passed = 0
@@ -178,6 +181,14 @@ try {
     await prisma.accountDeletionRequest.count({ where: { id: eligibleRequest.id } }) === 0,
     'Completed request still links to deleted customer.',
   )
+  const completionAudit = await prisma.accountErasureAudit.findUnique({
+    where: { requestId: eligibleRequest.id },
+    select: { anonymizedOrders: true },
+  })
+  assert(
+    completionAudit?.anonymizedOrders === 0,
+    'Processor did not retain independent completion audit.',
+  )
   passed++
   console.log('PASS 5/5: approved deletion removes only the disposable account.')
 
@@ -219,6 +230,12 @@ try {
       await prisma.order.count({ where: { id: pendingOrder.id } }) === 1,
     'Blocked deletion unexpectedly modified disposable records.',
   )
+  assert(
+    await prisma.accountErasureAudit.count({
+      where: { requestId: pendingRequest.id },
+    }) === 0,
+    'Blocked processor created a misleading completion audit.',
+  )
   console.log('EXTRA PASS: pending orders block the processor.')
   console.log('VERIFIED: 5/5 processor checks plus pending-order protection passed.')
 } catch (error) {
@@ -229,6 +246,9 @@ try {
   process.exitCode = 1
 } finally {
   try {
+    await prisma.accountErasureAudit.deleteMany({
+      where: { requestId: { in: createdRequestIds } },
+    })
     if (createdOrderIds.length > 0) {
       await prisma.order.deleteMany({
         where: { id: { in: createdOrderIds } },
