@@ -1,6 +1,6 @@
 # Loyce Dairies — Google Play Data Safety assessment (draft)
 
-**App:** Loyce Dairies · Android package \`com.loycedairies.app\`  
+**App:** Loyce Dairies · Android package `com.loycedairies.app`  
 **As-of date:** 17 November 2026  
 **Status:** **DRAFT / DO NOT SUBMIT** until open checks are completed and answers are independently reviewed.
 
@@ -37,7 +37,7 @@ The pages returned HTTP 200 and relevant text was confirmed in the production Ja
 
 | Google Play category and type | Working collection assessment | Why / code evidence | Main purpose candidates | Required/optional decision |
 |---|---|---|---|---|
-| **Personal info → Name** | **Collected: Yes** | Customer full name on account registration; recipient name at checkout. \`server/src/routes/auth.ts\`, \`server/src/routes/orders.ts\`. | Account management; App functionality | Required for registration/checkout; browsing does not require it. Review exact Play interpretation. |
+| **Personal info → Name** | **Collected: Yes** | Customer full name on account registration; recipient name at checkout. `server/src/routes/auth.ts`, `server/src/routes/orders.ts`. | Account management; App functionality | Required for registration/checkout; browsing does not require it. Review exact Play interpretation. |
 | **Personal info → Email address** | **Collected: Yes** | Registration/login identity; email verification and password recovery; Resend transactional email. | Account management; App functionality | Required to register/sign in; optional for browsing. |
 | **Personal info → Phone number** | **Collected: Yes** | Optional customer phone field; checkout contact phone required for orders. | App functionality; Account management | Optional for account creation; required for order placement, including pickup. |
 | **Personal info → Address** | **Collected: Yes** | Customer-provided delivery address on delivery checkout; pickup path doesn't need address. | App functionality | Optional for pickup/browsing, required for delivery. |
@@ -45,7 +45,7 @@ The pages returned HTTP 200 and relevant text was confirmed in the production Ja
 | **Financial info → Purchase history** | **Collected: Yes** | Order quantities/products/prices, payment method/status and order history in Neon. | App functionality; Account management | Only generated if an order is placed. Review form definition before marking optional. |
 | **Device or other IDs → Device or other IDs** | **Collected: Yes, based on SDK documentation** | Firebase Messaging and Firebase Installations SDKs generate/transmit installation identifiers; app registers staff FCM tokens in Neon. | App functionality (staff notifications) | **VERIFY** SDK auto-initialization for non-staff users and app launch; don't assume optional merely because staff grants notification permission. |
 | **App info and performance → Crash logs/Diagnostics** | **Unverified** | Firebase Messaging dependency / Android libraries and server logs alone do not establish exact app-level diagnostic collection. | App functionality / Analytics if observed | Inspect full SDK dependency graph and device network trace. |
-| **App activity → App interactions** | **Unverified** | Do not infer Firebase Analytics merely from resources named \`client_analytics.proto\` or Firebase libraries. | Analytics only if confirmed | Inspect exact release dependency graph and automatic initialization. |
+| **App activity → App interactions** | **Unverified** | Do not infer Firebase Analytics merely from resources named `client_analytics.proto` or Firebase libraries. | Analytics only if confirmed | Inspect exact release dependency graph and automatic initialization. |
 | **Financial info → User payment info** | **Not shown in current checkout code** | Current backend checkout accepts cash on delivery and cash on pickup; no card/bank numbers are collected there. | — | Reassess if payments are added before release. |
 
 **Do not select unrelated categories without evidence:** precise/approximate device location, contacts/address book, photos, audio, messages, health, sexual orientation, browsing history, ad identifiers and credit-card numbers are not established by the inspected app code and permissions. This is not a claim that there is no further SDK collection; that remains a test requirement.
@@ -63,7 +63,7 @@ Google Play defines **reportable sharing** separately from **collection**. A qua
 ### Security and deletion caveats
 
 - Native authentication tokens use Android Keystore-backed secure storage; website sessions use HTTP-only cookies and the API enforces HTTPS for native release.
-- Updated signed Android bundle was rebuilt with \`allowBackup=false\`, \`fullBackupContent=false\` and \`dataExtractionRules\` exclusions for cloud backups/device transfers. The bundled XML and manifest were inspected. Backup settings **do not** guarantee deletion of data already present in cloud services.
+- Updated signed Android bundle was rebuilt with `allowBackup=false`, `fullBackupContent=false` and `dataExtractionRules` exclusions for cloud backups/device transfers. The bundled XML and manifest were inspected. Backup settings **do not** guarantee deletion of data already present in cloud services.
 - The manual erasure service passed local service, operator and concurrency checks; finished transactions are retained as de-identified accounting records where eligible. Never call such records irreversibly anonymous without assessing linkage risks.
 - Neon production restore history was observed as **six hours** with no visible snapshots or schedule. Rollback may resurrect erased records and remove database audit evidence; keep an independent, access-controlled deletion register and require restore reconciliation.
 - Production verification showed **zero** pending deletion requests and **zero** completed erasure audits at inspection. These are point-in-time facts, not service-level guarantees.
@@ -71,9 +71,9 @@ Google Play defines **reportable sharing** separately from **collection**. A qua
 
 ## Release dependency audit — run locally (read-only)
 
-From \`client/android\`:
+From `client/android`:
 
-\`\`\`bash
+```bash
 ./gradlew :app:dependencies --configuration releaseRuntimeClasspath \
   > /tmp/loyce-release-dependencies.txt
 
@@ -81,9 +81,9 @@ From \`client/android\`:
   'firebase|analytics|crashlytics|play-services|google-mobile-ads|datatransport' \
   /tmp/loyce-release-dependencies.txt \
   | /usr/bin/head -n 80
-\`\`\`
+```
 
-Review presence/absence of \`firebase-analytics\`, \`firebase-crashlytics\`, \`firebase-installations\`, \`firebase-messaging\`, and related transitive SDKs. This is **library inventory only**, not a substitute for observing app network traffic.
+Review presence/absence of `firebase-analytics`, `firebase-crashlytics`, `firebase-installations`, `firebase-messaging`, and related transitive SDKs. This is **library inventory only**, not a substitute for observing app network traffic.
 
 ## Remaining approval checklist
 
