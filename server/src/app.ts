@@ -33,6 +33,7 @@ import catalogRoutes from './routes/catalog.js'
 // Customer authentication
 import authRoutes from './routes/auth.js'
 import sessionRoutes from './routes/sessions.js'
+import accountDeletionRoutes from './routes/accountDeletion.js'
 
 // Email verification and recovery
 import emailVerificationRoutes from './routes/emailVerification.js'
@@ -134,6 +135,9 @@ app.use('/api', catalogRoutes)
 
 app.use('/api/auth', authRoutes)
 app.use('/api/auth', sessionRoutes)
+
+// Authenticated customer account-deletion requests
+app.use('/api/account-deletion', accountDeletionRoutes)
 
 // ==========================================
 // EMAIL VERIFICATION AND RECOVERY
