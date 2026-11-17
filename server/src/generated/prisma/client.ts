@@ -123,6 +123,16 @@ export type OrderEscalationEvent = Prisma.OrderEscalationEventModel
 export type StaffPushDevice = Prisma.StaffPushDeviceModel
 /**
  * Model StaffPushDeliveryJob
- *
+ * 
  */
 export type StaffPushDeliveryJob = Prisma.StaffPushDeliveryJobModel
+/**
+ * Model AccountDeletionRequest
+ * 
+ */
+export type AccountDeletionRequest = Prisma.AccountDeletionRequestModel
+/**
+ * Model AccountErasureAudit
+ * 
+ */
+export type AccountErasureAudit = Prisma.AccountErasureAuditModel
