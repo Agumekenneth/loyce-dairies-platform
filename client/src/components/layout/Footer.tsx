@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 
 export default function Footer() {
   return (
@@ -13,9 +14,17 @@ export default function Footer() {
           </p>
         </div>
 
-        <p className="text-xs text-white/60">
-          © {new Date().getFullYear()} Loyce Dairies · Mbarara, Uganda
-        </p>
+        <div className="flex flex-col gap-2 text-sm">
+          <Link
+            to="/account-deletion"
+            className="font-semibold text-white/90 underline underline-offset-4 hover:text-white"
+          >
+            Request account deletion
+          </Link>
+          <p className="text-xs text-white/60">
+            © {new Date().getFullYear()} Loyce Dairies · Mbarara, Uganda
+          </p>
+        </div>
       </div>
     </footer>
   )
