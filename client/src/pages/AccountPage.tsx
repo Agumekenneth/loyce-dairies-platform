@@ -637,12 +637,23 @@ export default function AccountPage() {
                 on a shared device.
               </p>
 
-              <Link
-                to="/forgot-password"
-                className="mt-5 inline-block text-sm font-bold text-brand-light hover:text-brand"
-              >
-                Password recovery
-              </Link>
+              <div className="mt-5 flex flex-col items-start gap-3">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-bold text-brand-light hover:text-brand"
+                >
+                  Password recovery
+                </Link>
+
+                {customer.role === 'CUSTOMER' && (
+                  <Link
+                    to="/account-deletion"
+                    className="text-sm font-bold text-brand-light hover:text-brand"
+                  >
+                    Request account deletion
+                  </Link>
+                )}
+              </div>
 
               {logoutError && (
                 <p
