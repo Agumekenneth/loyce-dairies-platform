@@ -77,8 +77,18 @@ async function callPesapal(
     throw new Error(`Pesapal request failed (HTTP ${response.status}).`)
   }
   const result = asRecord(await response.json())
+  // Some successful status responses contain an error object whose
+  // code/message fields are all null. That is not a provider failure.
   if (result.error != null) {
-    throw new Error('Pesapal reported a payment processing error.')
+    const detail = result.error
+    if (typeof detail !== 'object' ||
+        (detail !== null && (
+          (detail as JsonRecord).code != null ||
+          (detail as JsonRecord).message != null ||
+          (detail as JsonRecord).error_type != null
+        ))) {
+      throw new Error('Pesapal reported a payment processing error.')
+    }
   }
   return result
 }
