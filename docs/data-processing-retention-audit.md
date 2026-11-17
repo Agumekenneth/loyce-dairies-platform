@@ -74,6 +74,18 @@ Google Play requires an in-app and web-based path for users to request deletion 
 
 Reference: https://support.google.com/googleplay/android-developer/answer/13327111
 
+## Android app backup and release manifest review (17 November 2026)
+
+The inspected, previously signed Android bundle targets **SDK 36** (minimum 24), declares `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, and Firebase messaging permissions, and **originally** had `android:allowBackup="true"`. These permissions alone do not demonstrate that the app collects location, contacts or microphone data.
+
+A source-level hardening patch now sets `android:allowBackup="false"` and `android:fullBackupContent="false"`, and adds `android:dataExtractionRules="@xml/loyce_data_extraction_rules"`. The XML excludes application-owned root, device-protected root and external application files from both cloud backup and Android 12+ device transfers. This is a **source change only until a new signed AAB is built and its merged manifest and packaged XML are verified**.
+
+The application uses `@aparajita/capacitor-secure-storage`, which stores Android encrypted values in SharedPreferences using an Android Keystore key. Disabling application backup avoids transferring encrypted SharedPreferences that would lack the original Keystore key on another device. The expected user experience after reinstall/migration is to sign in again.
+
+**Release blockers/checks:** rebuild the web bundle if necessary, sync Capacitor, build a newly signed release AAB, inspect its merged manifest for `allowBackup=false`, `fullBackupContent=false`, and `dataExtractionRules`; inspect packaged `res/xml` rules; validate and verify signing. Do not reuse the earlier AAB for Play submission after modifying the manifest. Test clean install and fresh login. Review Android 16+ cross-platform transfer behavior separately before claiming protection for transfers to iOS.
+
+Authoritative Android references: https://developer.android.com/identity/data/autobackup and https://developer.android.com/about/versions/12/behavior-changes-12.
+
 ## Release guardrail
 
 This document authorizes **no production deletion, database restore, configuration change, or Play Console declaration**. The manual processor remains disabled by default. Do not publish personal identifiers, API keys, full database connection strings, or deletion register exports in GitHub.
