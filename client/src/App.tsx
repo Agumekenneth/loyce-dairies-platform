@@ -81,6 +81,7 @@ import StaffProductsPage from './pages/StaffProductsPage'
 // ==========================================
 
 import NotFoundPage from './pages/NotFoundPage'
+import AccountDeletionPage from './pages/AccountDeletionPage'
 
 // ==========================================
 // APPLICATION ROUTES
@@ -108,6 +109,12 @@ export default function App() {
         <Route
           path="/products/:id"
           element={<ProductDetailsPage />}
+        />
+
+        {/* PUBLIC ACCOUNT-DELETION REQUEST PAGE */}
+        <Route
+          path="/account-deletion"
+          element={<AccountDeletionPage />}
         />
 
         {/* ==================================
