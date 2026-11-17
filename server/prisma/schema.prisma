@@ -347,6 +347,15 @@ model Order {
 
   paymentStatus PaymentStatus @default(PENDING)
 
+  // Pesapal-hosted online checkout. These are null for cash orders.
+  // Only verified server-to-provider status may mark an order PAID.
+  paymentProvider          String?
+  paymentProviderReference String?   @unique
+  paymentProviderTrackingId String?  @unique
+  paymentProviderCheckoutUrl String? @db.Text
+  paymentProviderState     String?
+  paymentVerifiedAt        DateTime?
+
   // ========================================
   // CUSTOMER CONTACT DETAILS
   // ========================================
