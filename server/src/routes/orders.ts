@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
 import { getTrustedClientOrigins } from '../lib/trustedOrigins.js'
+import { onlinePaymentsAvailable } from '../services/pesapal.js'
 
 // LOYCE DAIRIES PLATFORM
 // Customer checkout, inventory and order history
@@ -43,13 +44,13 @@ const commonCheckoutFields = {
 const pickupCheckoutSchema = z.object({
   ...commonCheckoutFields,
   fulfillmentMethod: z.literal('PICKUP'),
-  paymentMethod: z.literal('CASH_ON_PICKUP'),
+  paymentMethod: z.enum(['CASH_ON_PICKUP', 'MTN_MOMO', 'AIRTEL_MONEY', 'CARD']),
 }).strict()
 
 const deliveryCheckoutSchema = z.object({
   ...commonCheckoutFields,
   fulfillmentMethod: z.literal('DELIVERY'),
-  paymentMethod: z.literal('CASH_ON_DELIVERY'),
+  paymentMethod: z.enum(['CASH_ON_DELIVERY', 'MTN_MOMO', 'AIRTEL_MONEY', 'CARD']),
   deliveryZoneId: z.number()
     .int()
     .positive()
@@ -282,6 +283,18 @@ router.post(
     }
 
     const checkout = parsed.data
+
+    const isOnlinePayment = [
+      'MTN_MOMO', 'AIRTEL_MONEY', 'CARD',
+    ].includes(checkout.paymentMethod)
+
+    if (isOnlinePayment && !onlinePaymentsAvailable()) {
+      res.status(503).json({
+        success: false,
+        message: 'Online payments are currently unavailable. Please choose cash.',
+      })
+      return
+    }
 
     const productIds = checkout.items.map(
       (item) => item.productId,
@@ -546,9 +559,11 @@ router.post(
           // SAVE CUSTOMER ORDER
           // ==================================
 
+          const orderNumber = generateOrderNumber()
+
           const savedOrder = await tx.order.create({
             data: {
-              orderNumber: generateOrderNumber(),
+              orderNumber,
 
               customer: {
                 connect: {
@@ -561,6 +576,12 @@ router.post(
 
               paymentMethod:
                 checkout.paymentMethod,
+
+              ...(isOnlinePayment ? {
+                paymentProvider: 'PESAPAL',
+                paymentProviderReference: orderNumber,
+                paymentProviderState: 'NEW',
+              } : {}),
 
               status: 'PENDING',
               paymentStatus: 'PENDING',
@@ -735,8 +756,9 @@ router.post(
 
       res.status(201).json({
         success: true,
-        message:
-          'Your order has been received and is pending confirmation.',
+        message: isOnlinePayment
+          ? 'Order saved. Complete payment using the secure Pesapal checkout.'
+          : 'Your order has been received and is pending confirmation.',
         data: order,
       })
     } catch (error: unknown) {
