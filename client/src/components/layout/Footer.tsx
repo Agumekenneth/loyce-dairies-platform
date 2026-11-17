@@ -16,6 +16,12 @@ export default function Footer() {
 
         <div className="flex flex-col gap-2 text-sm">
           <Link
+            to="/privacy-policy"
+            className="font-semibold text-white/90 underline underline-offset-4 hover:text-white"
+          >
+            Privacy Policy
+          </Link>
+          <Link
             to="/account-deletion"
             className="font-semibold text-white/90 underline underline-offset-4 hover:text-white"
           >

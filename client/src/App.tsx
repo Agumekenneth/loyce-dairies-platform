@@ -82,6 +82,7 @@ import StaffProductsPage from './pages/StaffProductsPage'
 
 import NotFoundPage from './pages/NotFoundPage'
 import AccountDeletionPage from './pages/AccountDeletionPage'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 
 // ==========================================
 // APPLICATION ROUTES
@@ -109,6 +110,12 @@ export default function App() {
         <Route
           path="/products/:id"
           element={<ProductDetailsPage />}
+        />
+
+        {/* PUBLIC PRIVACY POLICY */}
+        <Route
+          path="/privacy-policy"
+          element={<PrivacyPolicyPage />}
         />
 
         {/* PUBLIC ACCOUNT-DELETION REQUEST PAGE */}
