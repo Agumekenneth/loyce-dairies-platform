@@ -41,6 +41,7 @@ import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
 // Customer orders
 import orderRoutes from './routes/orders.js'
+import paymentsRouter from './routes/payments.js'
 
 // Staff administration
 import adminOrdersRouter from './routes/adminOrders.js'
@@ -158,6 +159,9 @@ app.use(
 // ==========================================
 
 app.use('/api', orderRoutes)
+
+// Server-side hosted payment initiation and provider status notifications.
+app.use('/api/payments', paymentsRouter)
 
 // ==========================================
 // STAFF ORDER MANAGEMENT
