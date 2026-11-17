@@ -136,6 +136,9 @@ model Customer {
 
   orders Order[]
 
+  // Customer-initiated personal data deletion requests.
+  accountDeletionRequest AccountDeletionRequest?
+
   // ========================================
   // STAFF ORDER AUDIT HISTORY
   // ========================================
@@ -885,4 +888,29 @@ model StaffPushDeliveryJob {
   @@index([status, lockedUntil])
   // Device-level delivery history
   @@index([deviceId, status])
+}
+
+
+// ==========================================
+// ACCOUNT DELETION REQUEST TRACKING
+//
+// Creating a request does NOT delete data.
+// Fulfillment must separately address orders,
+// customer contact details, and audit records.
+// ==========================================
+
+enum AccountDeletionRequestStatus {
+  PENDING
+  COMPLETED
+}
+
+model AccountDeletionRequest {
+  id          String                       @id @default(cuid())
+  customerId  String                       @unique
+  customer    Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status      AccountDeletionRequestStatus @default(PENDING)
+  requestedAt DateTime                     @default(now())
+  processedAt DateTime?
+
+  @@index([status, requestedAt])
 }
