@@ -91,9 +91,9 @@ The actual `releaseRuntimeClasspath` output confirms `firebase-messaging:25.0.1`
 
 Firebase documents FCM registration-token auto-initialization as **enabled by default**. The previous source manifest did not opt out of it. A new Android source change now adds `firebase_messaging_auto_init_enabled=false` and `firebase_analytics_collection_enabled=false` to request **no automatic FCM registration on startup**. This reduces unnecessary FCM registration for customer devices, but the final merged manifest, real device behavior and previous persisted per-installation auto-init state require verification. **Do not mark device identifiers uncollected:** staff who activate push still send FCM tokens and Firebase installation IDs.
 
-The Capacitor Push Notifications plugin currently implements `register()` by enabling FCM auto-initialization and requesting a token; this means opted-in staff should continue to register through the existing UI. Version-specific behavior and logout/revocation still require an Android regression test (logged-out devices should not receive staff order pushes). Server-side logout currently deactivates staff push devices in Neon, but the app has not yet been proven to locally unregister the FCM token on logout.
+The Capacitor Push Notifications plugin implements `register()` by enabling FCM auto-initialization and requesting a token. On 17 November 2026, a staff member successfully registered an LG Android phone, received a new-order push notification with an audible chime while the app was backgrounded, and opened the order from the alert. After logout, the app cleared visible notifications and remained signed out. A read-only production Neon query showed the previously active `StaffPushDevice` record became `INACTIVE` with a `revokedAt` timestamp; staff sign-in and re-registration subsequently created a new `ACTIVE` record with null `revokedAt`. These checks verify this tested path but do not establish all-device behavior or rule out independent SDK data transfers.
 
-This source change **invalidates the previous signed AAB as the current release candidate**. Build, validate and re-sign a new release AAB after verifying the plugin's behavior, then inspect the new manifest for both `false` flags and test real staff notifications on a disposable staff account. No claim about zero installation-ID collection is justified without network testing.
+The Android release was rebuilt after the logout and Firebase opt-out changes. The updated AAB passed `bundletool validate` and `jarsigner -verify`; its certificate matched the expected upload key. The bundle manifest was independently inspected and included `allowBackup=false`, `fullBackupContent=false`, `dataExtractionRules`, `firebase_messaging_auto_init_enabled=false`, and `firebase_analytics_collection_enabled=false`. The signed release installed on an LG Android phone after resolving a pre-existing conflicting app signature. Native app startup, product-list loading and staff push notification flow were exercised successfully. These checks **do not** establish that every SDK data type has been fully audited or that the app is approved for Play publication.
 
 References:
 - https://firebase.google.com/docs/cloud-messaging/android/get-started
@@ -102,9 +102,9 @@ References:
 
 ## Remaining approval checklist
 
-- [ ] Obtain and review the filtered release dependencies output above.
-- [ ] Examine app initialization on a clean Android install without signing in; check FCM installation/token and SDK network activity.
-- [ ] Test a new registered customer and a staff notification session; document actual data sent to each destination.
+- [x] Obtain and review the filtered release dependencies output above (Firebase Messaging, Installations, Data Transport, measurement connector; no Firebase Analytics/Crashlytics or Google Mobile Ads in the filtered output).
+- [ ] Examine app initialization on a clean Android install without signing in; check FCM installation/token and SDK network activity. Release manifest flags were verified but no clean-install network trace was captured.
+- [ ] Test a new registered customer and document actual network destinations and data sent by customer/staff sessions. Staff notification registration and delivery behavior was exercised on an LG Android device, but network traffic was not captured.
 - [ ] Confirm Firebase analytics/crash collection is absent or declare the correct categories and purposes.
 - [ ] Confirm all actual off-device data transmissions use encryption in transit.
 - [ ] Make the **required/optional** and **collected/shared** decisions per Google Play's exact options, incorporating vendor contract terms.
