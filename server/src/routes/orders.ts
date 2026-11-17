@@ -302,6 +302,45 @@ router.post(
     try {
       const order = await prisma.$transaction(
         async (tx) => {
+          // Lock the customer row through checkout. Account
+          // erasure takes an exclusive lock on the same row
+          // before checking orders, preventing a race between
+          // new checkouts and final account removal.
+          //
+          // Check current account eligibility INSIDE the
+          // transaction: the earlier session lookup alone
+          // is not sufficient during concurrent deletion.
+          const eligibleCustomers = await tx.$queryRaw<
+            Array<{ id: string }>
+          >`
+            SELECT "id"
+            FROM "Customer"
+            WHERE "id" = ${session.customer.id}
+              AND "isActive" = true
+              AND "role" = 'CUSTOMER'
+            FOR SHARE
+          `
+
+          if (eligibleCustomers.length !== 1) {
+            throw new CheckoutError(
+              401,
+              'Your customer account is no longer available for checkout.',
+            )
+          }
+
+          const deletionRequest =
+            await tx.accountDeletionRequest.findUnique({
+              where: { customerId: session.customer.id },
+              select: { status: true },
+            })
+
+          if (deletionRequest?.status === 'PENDING') {
+            throw new CheckoutError(
+              409,
+              'Account deletion is pending. New orders are unavailable while your deletion request is under review.',
+            )
+          }
+
           // Retrieve current product prices
           // from the authoritative database.
 

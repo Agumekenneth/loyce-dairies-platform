@@ -74,6 +74,24 @@ export async function eraseRequestedCustomerAccount(
       return { outcome: 'NOT_REQUESTED' } as const
     }
 
+    // Lock the account BEFORE examining its orders. Checkout
+    // acquires a shared lock on this same row before creating
+    // an order, so neither operation can bypass the other's
+    // final database checks. The serializable transaction
+    // aborts on conflicting concurrent writes.
+    const lockedCustomer = await tx.$queryRaw<
+      Array<{ id: string }>
+    >`
+      SELECT "id"
+      FROM "Customer"
+      WHERE "id" = ${customerId}
+      FOR UPDATE
+    `
+
+    if (lockedCustomer.length !== 1) {
+      return { outcome: 'NOT_REQUESTED' } as const
+    }
+
     const customer = await tx.customer.findUnique({
       where: { id: customerId },
       select: {
