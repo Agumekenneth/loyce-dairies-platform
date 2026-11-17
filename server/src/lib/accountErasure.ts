@@ -185,6 +185,12 @@ export async function eraseRequestedCustomerAccount(
           deliveryInstructions: null,
           deliveryZoneId: null,
           deliveryZoneName: null,
+          // Purge hosted payment links and provider identifiers from
+          // de-identified ledger rows. Retained transaction amounts,
+          // method and status remain available for accounting.
+          paymentProviderCheckoutUrl: null,
+          paymentProviderTrackingId: null,
+          paymentProviderReference: null,
         },
       })
     }
