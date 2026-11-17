@@ -1,4 +1,7 @@
 
+import { Capacitor } from '@capacitor/core'
+import { PushNotifications } from '@capacitor/push-notifications'
+
 import {
   clearMobileSessionToken,
   getMobileSessionToken,
@@ -357,6 +360,44 @@ export async function getCurrentCustomer():
 }
 
 // ==========================================
+// STOP FCM REGISTRATION AFTER ANDROID LOGOUT
+// ==========================================
+
+// Capacitor's register() enables Firebase Messaging
+// auto-init at runtime, overriding the manifest default.
+// Disable it again after the backend has revoked staff
+// device delivery. This must never prevent sign-out.
+async function clearNativeAndroidPushAfterLogout():
+  Promise<void> {
+  if (
+    !isBundledNativeMobileApp() ||
+    Capacitor.getPlatform() !== 'android'
+  ) {
+    return
+  }
+
+  try {
+    await PushNotifications.unregister()
+  } catch {
+    // Backend staff device registrations have
+    // already been deactivated during logout.
+    console.warn(
+      'Unable to unregister Android push locally after logout.',
+    )
+  }
+
+  try {
+    await PushNotifications.removeAllDeliveredNotifications()
+  } catch {
+    // Clearing displayed alerts is a best-effort
+    // privacy precaution, not a logout prerequisite.
+    console.warn(
+      'Unable to clear delivered Android notifications.',
+    )
+  }
+}
+
+// ==========================================
 // WEBSITE AND MOBILE LOGOUT
 // ==========================================
 
@@ -382,6 +423,7 @@ export async function logoutCustomer():
     await getMobileSessionToken()
 
   if (!mobileToken) {
+    await clearNativeAndroidPushAfterLogout()
     return
   }
 
@@ -402,4 +444,9 @@ export async function logoutCustomer():
   // server-side revocation succeeds.
 
   await clearMobileSessionToken()
+
+  // A staff registration enables FCM auto-init for this
+  // device. Reset it on logout so customers/guests do not
+  // inherit Firebase registration from a prior staff user.
+  await clearNativeAndroidPushAfterLogout()
 }
