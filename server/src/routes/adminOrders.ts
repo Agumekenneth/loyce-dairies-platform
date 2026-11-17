@@ -513,6 +513,8 @@ router.patch(
                 id: true,
                 status: true,
                 fulfillmentMethod: true,
+                paymentMethod: true,
+                paymentStatus: true,
 
                 // Needed to verify that the
                 // inventory events correspond
@@ -546,6 +548,23 @@ router.patch(
               `Cannot change order status from ${currentOrder.status} to ${nextStatus}.`,
             )
           }
+
+          // Only settled online payments may progress beyond PENDING.
+          // Cash orders retain their existing collect-on-delivery/pickup flow.
+          if (
+            ['MTN_MOMO', 'AIRTEL_MONEY', 'CARD'].includes(currentOrder.paymentMethod) &&
+            currentOrder.paymentStatus !== 'PAID' &&
+            nextStatus !== 'CANCELLED'
+          ) {
+            throw new StaffOrderError(
+              409,
+              'Online payment has not been verified. Only cancellation is available.',
+            )
+          }
+
+          // Paid orders require manual refund/reconciliation on cancellation.
+          // Never automatically mark a paid order refunded from an order
+          // cancellation; only verified provider evidence can do that.
 
           // ==================================
           // 3. CHECK FULFILLMENT METHOD
