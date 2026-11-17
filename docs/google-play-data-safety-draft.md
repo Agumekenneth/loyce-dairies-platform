@@ -85,6 +85,21 @@ From `client/android`:
 
 Review presence/absence of `firebase-analytics`, `firebase-crashlytics`, `firebase-installations`, `firebase-messaging`, and related transitive SDKs. This is **library inventory only**, not a substitute for observing app network traffic.
 
+## Android release dependency audit update — 17 November 2026
+
+The actual `releaseRuntimeClasspath` output confirms `firebase-messaging:25.0.1`, `firebase-installations:18.0.0`, `firebase-datatransport:18.2.0`, `firebase-measurement-connector:19.0.0`, plus Google Play Services dependencies. The filtered dependency output **did not show** `firebase-analytics`, `firebase-crashlytics` or `play-services-ads`. The measurement connector **does not establish Firebase Analytics collection**.
+
+Firebase documents FCM registration-token auto-initialization as **enabled by default**. The previous source manifest did not opt out of it. A new Android source change now adds `firebase_messaging_auto_init_enabled=false` and `firebase_analytics_collection_enabled=false` to request **no automatic FCM registration on startup**. This reduces unnecessary FCM registration for customer devices, but the final merged manifest, real device behavior and previous persisted per-installation auto-init state require verification. **Do not mark device identifiers uncollected:** staff who activate push still send FCM tokens and Firebase installation IDs.
+
+The Capacitor Push Notifications plugin currently implements `register()` by enabling FCM auto-initialization and requesting a token; this means opted-in staff should continue to register through the existing UI. Version-specific behavior and logout/revocation still require an Android regression test (logged-out devices should not receive staff order pushes). Server-side logout currently deactivates staff push devices in Neon, but the app has not yet been proven to locally unregister the FCM token on logout.
+
+This source change **invalidates the previous signed AAB as the current release candidate**. Build, validate and re-sign a new release AAB after verifying the plugin's behavior, then inspect the new manifest for both `false` flags and test real staff notifications on a disposable staff account. No claim about zero installation-ID collection is justified without network testing.
+
+References:
+- https://firebase.google.com/docs/cloud-messaging/android/get-started
+- https://firebase.google.com/docs/reference/android/com/google/firebase/messaging/FirebaseMessaging
+- https://github.com/ionic-team/capacitor-plugins/blob/main/push-notifications/android/src/main/java/com/capacitorjs/plugins/pushnotifications/PushNotificationsPlugin.java
+
 ## Remaining approval checklist
 
 - [ ] Obtain and review the filtered release dependencies output above.

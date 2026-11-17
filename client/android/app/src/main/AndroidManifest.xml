@@ -11,6 +11,20 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!--
+          Do not register ordinary customer installations with FCM
+          automatically. Staff push registration explicitly calls the
+          Capacitor plugin after notification permission/opt-in.
+          Capacitor's register() enables FCM auto-initialization for
+          the staff device; server-side logout revokes staff delivery.
+        -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
