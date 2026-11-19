@@ -67,6 +67,15 @@ export const OrderStatus = {
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
 
+export const OrderEscalationLevel = {
+  REMINDER: 'REMINDER',
+  ESCALATED: 'ESCALATED',
+  CRITICAL: 'CRITICAL'
+} as const
+
+export type OrderEscalationLevel = (typeof OrderEscalationLevel)[keyof typeof OrderEscalationLevel]
+
+
 export const DeliveryZoneAuditAction = {
   CREATED: 'CREATED',
   UPDATED: 'UPDATED',
@@ -94,3 +103,22 @@ export const ProductAuditAction = {
 } as const
 
 export type ProductAuditAction = (typeof ProductAuditAction)[keyof typeof ProductAuditAction]
+
+
+export const PushPlatform = {
+  ANDROID: 'ANDROID',
+  IOS: 'IOS'
+} as const
+
+export type PushPlatform = (typeof PushPlatform)[keyof typeof PushPlatform]
+
+
+export const StaffPushDeliveryStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED'
+} as const
+
+export type StaffPushDeliveryStatus = (typeof StaffPushDeliveryStatus)[keyof typeof StaffPushDeliveryStatus]

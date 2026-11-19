@@ -101,3 +101,28 @@ export type InventoryEvent = Prisma.InventoryEventModel
  * 
  */
 export type ProductAuditEvent = Prisma.ProductAuditEventModel
+/**
+ * Model StaffOrderAlert
+ * 
+ */
+export type StaffOrderAlert = Prisma.StaffOrderAlertModel
+/**
+ * Model StaffOrderAlertRead
+ * 
+ */
+export type StaffOrderAlertRead = Prisma.StaffOrderAlertReadModel
+/**
+ * Model OrderEscalationEvent
+ * 
+ */
+export type OrderEscalationEvent = Prisma.OrderEscalationEventModel
+/**
+ * Model StaffPushDevice
+ * 
+ */
+export type StaffPushDevice = Prisma.StaffPushDeviceModel
+/**
+ * Model StaffPushDeliveryJob
+ *
+ */
+export type StaffPushDeliveryJob = Prisma.StaffPushDeliveryJobModel

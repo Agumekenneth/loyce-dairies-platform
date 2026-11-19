@@ -6,7 +6,10 @@ import {
   type FormEvent,
 } from 'react'
 
-import { Link } from 'react-router-dom'
+import {
+  Link,
+  useSearchParams,
+} from 'react-router-dom'
 
 import {
   AlertCircle,
@@ -40,7 +43,11 @@ import {
 } from '../services/adminOrdersApi'
 
 // ==========================================
-// STATUS LABELS
+// LOYCE DAIRIES PLATFORM
+// STAFF ORDER MANAGEMENT
+//
+// MILESTONE 4.14
+// DIRECT ORDER NOTIFICATION NAVIGATION
 // ==========================================
 
 const statusLabels: Record<OrderStatus, string> = {
@@ -53,28 +60,19 @@ const statusLabels: Record<OrderStatus, string> = {
   CANCELLED: 'Cancelled',
 }
 
-// ==========================================
-// PERMITTED STATUS TRANSITIONS
-// ==========================================
-
 const transitions: Record<
   OrderStatus,
   readonly OrderStatus[]
 > = {
   PENDING: ['CONFIRMED', 'CANCELLED'],
-
   CONFIRMED: ['PREPARING', 'CANCELLED'],
-
   PREPARING: [
     'READY_FOR_PICKUP',
     'OUT_FOR_DELIVERY',
     'CANCELLED',
   ],
-
   READY_FOR_PICKUP: ['COMPLETED'],
-
   OUT_FOR_DELIVERY: ['COMPLETED'],
-
   COMPLETED: [],
   CANCELLED: [],
 }
@@ -155,9 +153,37 @@ function availableTransitions(
 // ==========================================
 
 export default function StaffOrdersPage() {
-  // ==========================================
+  // ========================================
+  // MILESTONE 4.14
+  // URL-BASED ORDER SELECTION
+  // ========================================
+
+  const [searchParams, setSearchParams] =
+    useSearchParams()
+
+  // This value comes from:
+  //
+  // /staff/orders?orderId=...
+  //
+  // It takes precedence over manual selection.
+  // The backend independently verifies that
+  // the requested order exists and that the
+  // current account has staff permissions.
+
+  const linkedOrderId =
+    searchParams.get('orderId')
+
+  const [
+    manuallySelectedId,
+    setManuallySelectedId,
+  ] = useState<string | null>(null)
+
+  const selectedId =
+    linkedOrderId ?? manuallySelectedId
+
+  // ========================================
   // ORDER LIST STATE
-  // ==========================================
+  // ========================================
 
   const [orders, setOrders] = useState<
     StaffOrderSummary[]
@@ -184,12 +210,9 @@ export default function StaffOrdersPage() {
   const [accessError, setAccessError] =
     useState<number | null>(null)
 
-  // ==========================================
-  // SELECTED ORDER STATE
-  // ==========================================
-
-  const [selectedId, setSelectedId] =
-    useState<string | null>(null)
+  // ========================================
+  // SELECTED ORDER DETAILS
+  // ========================================
 
   const [selectedOrder, setSelectedOrder] =
     useState<StaffOrderDetail | null>(null)
@@ -203,16 +226,18 @@ export default function StaffOrdersPage() {
   const [detailsVersion, setDetailsVersion] =
     useState(0)
 
-  // ==========================================
+  // ========================================
   // STATUS UPDATE STATE
-  // ==========================================
+  // ========================================
 
   const [targetStatus, setTargetStatus] =
     useState<OrderStatus | ''>('')
 
   const [note, setNote] = useState('')
 
-  const [updating, setUpdating] = useState(false)
+  const [updating, setUpdating] =
+    useState(false)
+
   const updatingRef = useRef(false)
 
   const [updateError, setUpdateError] =
@@ -221,9 +246,9 @@ export default function StaffOrdersPage() {
   const [successMessage, setSuccessMessage] =
     useState<string | null>(null)
 
-  // ==========================================
-  // FETCH STAFF ORDERS
-  // ==========================================
+  // ========================================
+  // FETCH STAFF ORDER LIST
+  // ========================================
 
   useEffect(() => {
     const controller = new AbortController()
@@ -240,13 +265,18 @@ export default function StaffOrdersPage() {
       try {
         const page = await getStaffOrders({
           status:
-            filter === 'ALL' ? undefined : filter,
+            filter === 'ALL'
+              ? undefined
+              : filter,
+
           cursor: cursor ?? undefined,
           limit: 20,
           signal: controller.signal,
         })
 
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted) {
+          return
+        }
 
         setAccessError(null)
 
@@ -269,15 +299,26 @@ export default function StaffOrdersPage() {
 
         setNextCursor(page.nextCursor)
 
-        // Automatically display the first order
-        // when no order is currently selected.
-        if (cursor === null && page.orders.length > 0) {
-          setSelectedId(
-            (current) => current ?? page.orders[0].id,
+        // Preserve automatic selection for
+        // ordinary order-management visits.
+        //
+        // When an orderId exists in the URL,
+        // it takes precedence and the linked
+        // order is loaded independently.
+
+        if (
+          cursor === null &&
+          page.orders.length > 0
+        ) {
+          setManuallySelectedId(
+            (current) =>
+              current ?? page.orders[0].id,
           )
         }
       } catch (error: unknown) {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted) {
+          return
+        }
 
         if (
           error instanceof StaffApiError &&
@@ -286,7 +327,7 @@ export default function StaffOrdersPage() {
         ) {
           setAccessError(error.status)
           setOrders([])
-          setSelectedId(null)
+          setManuallySelectedId(null)
           setSelectedOrder(null)
         } else {
           setListError(errorMessage(error))
@@ -305,9 +346,9 @@ export default function StaffOrdersPage() {
     }
   }, [filter, cursor, reloadVersion])
 
-  // ==========================================
-  // FETCH SELECTED ORDER DETAILS
-  // ==========================================
+  // ========================================
+  // FETCH EXACT SELECTED ORDER
+  // ========================================
 
   useEffect(() => {
     if (!selectedId) {
@@ -325,18 +366,36 @@ export default function StaffOrdersPage() {
       setSelectedOrder(null)
 
       try {
+        // This endpoint retrieves the order
+        // directly by its database ID.
+        //
+        // It does not depend on the current
+        // order-list page or status filter.
+
         const order = await getStaffOrderDetails(
           selectedId,
           controller.signal,
         )
 
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted) {
+          return
+        }
 
         setSelectedOrder(order)
       } catch (error: unknown) {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted) {
+          return
+        }
 
-        setDetailsError(errorMessage(error))
+        if (
+          error instanceof StaffApiError &&
+          (error.status === 401 ||
+            error.status === 403)
+        ) {
+          setAccessError(error.status)
+        } else {
+          setDetailsError(errorMessage(error))
+        }
       } finally {
         if (!controller.signal.aborted) {
           setDetailsLoading(false)
@@ -351,12 +410,14 @@ export default function StaffOrdersPage() {
     }
   }, [selectedId, detailsVersion])
 
-  // ==========================================
-  // REFRESH ORDERS
-  // ==========================================
+  // ========================================
+  // REFRESH ORDER INFORMATION
+  // ========================================
 
   const handleRefresh = () => {
-    if (updatingRef.current) return
+    if (updatingRef.current) {
+      return
+    }
 
     setCursor(null)
     setReloadVersion((value) => value + 1)
@@ -369,16 +430,36 @@ export default function StaffOrdersPage() {
     setSuccessMessage(null)
   }
 
-  // ==========================================
-  // FILTER ORDER LIST
-  // ==========================================
+  // ========================================
+  // FILTER CUSTOMER ORDERS
+  // ========================================
 
   const handleFilter = (value: OrderFilter) => {
-    if (updatingRef.current) return
+    if (updatingRef.current) {
+      return
+    }
+
+    // Filtering returns staff to the
+    // regular order-list selection mode.
+    // Remove an earlier notification link.
+
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(
+          previous,
+        )
+
+        next.delete('orderId')
+
+        return next
+      },
+      { replace: true },
+    )
 
     setFilter(value)
     setCursor(null)
-    setSelectedId(null)
+
+    setManuallySelectedId(null)
     setSelectedOrder(null)
 
     setTargetStatus('')
@@ -389,17 +470,39 @@ export default function StaffOrdersPage() {
     setReloadVersion((value) => value + 1)
   }
 
-  // ==========================================
+  // ========================================
   // SELECT CUSTOMER ORDER
-  // ==========================================
+  // ========================================
 
   const handleSelectOrder = (orderId: string) => {
-    if (updatingRef.current) return
+    if (updatingRef.current) {
+      return
+    }
 
-    // Keep a selected order visible when clicked again.
-    if (selectedId === orderId) return
+    if (selectedId === orderId) {
+      return
+    }
 
-    setSelectedId(orderId)
+    // Keep the URL synchronized with the
+    // order selected by staff.
+    //
+    // This also makes the selection
+    // directly linkable and refresh-safe.
+
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(
+          previous,
+        )
+
+        next.set('orderId', orderId)
+
+        return next
+      },
+      { replace: true },
+    )
+
+    setManuallySelectedId(orderId)
     setSelectedOrder(null)
 
     setTargetStatus('')
@@ -408,9 +511,9 @@ export default function StaffOrdersPage() {
     setSuccessMessage(null)
   }
 
-  // ==========================================
+  // ========================================
   // CHANGE ORDER STATUS
-  // ==========================================
+  // ========================================
 
   const handleUpdateStatus = async (
     event: FormEvent<HTMLFormElement>,
@@ -465,16 +568,15 @@ export default function StaffOrdersPage() {
     setUpdating(true)
 
     try {
-      const updated = await changeStaffOrderStatus(
-        selectedOrder.id,
-        targetStatus,
-        cleanNote || undefined,
-      )
+      const updated =
+        await changeStaffOrderStatus(
+          selectedOrder.id,
+          targetStatus,
+          cleanNote || undefined,
+        )
 
-      // Refresh selected details from the server response.
       setSelectedOrder(updated)
 
-      // Update the visible order card.
       setOrders((current) =>
         current.map((order) =>
           order.id === updated.id
@@ -496,8 +598,6 @@ export default function StaffOrdersPage() {
         }.`,
       )
 
-      // Refresh the list because status filtering
-      // may exclude this order after the change.
       setCursor(null)
       setReloadVersion((value) => value + 1)
     } catch (error: unknown) {
@@ -508,6 +608,10 @@ export default function StaffOrdersPage() {
     }
   }
 
+  // ========================================
+  // DERIVED VIEW STATE
+  // ========================================
+
   const nextStatuses = selectedOrder
     ? availableTransitions(selectedOrder)
     : []
@@ -517,14 +621,22 @@ export default function StaffOrdersPage() {
       ? selectedOrder
       : null
 
-  // ==========================================
-  // STAFF ACCESS RESTRICTION
-  // ==========================================
+  const isLinkedOrder =
+    linkedOrderId !== null &&
+    selectedId === linkedOrderId
 
-  if (accessError === 401 || accessError === 403) {
+  // ========================================
+  // STAFF ACCESS RESTRICTION
+  // ========================================
+
+  if (
+    accessError === 401 ||
+    accessError === 403
+  ) {
     return (
       <main className="min-h-[70vh] bg-cream px-5 py-20">
         <section className="mx-auto max-w-lg rounded-[2rem] border border-brand/10 bg-white p-9 text-center shadow-sm">
+
           <LockKeyhole
             size={42}
             className="mx-auto text-brand-light"
@@ -555,25 +667,27 @@ export default function StaffOrdersPage() {
               ? 'Go to sign in'
               : 'Back to my account'}
           </Link>
+
         </section>
       </main>
     )
   }
 
-  // ==========================================
+  // ========================================
   // STAFF ORDER DASHBOARD
-  // ==========================================
+  // ========================================
 
   return (
     <main className="min-h-screen bg-cream">
-      {/* ======================================
+
+      {/* ====================================
           HEADER AND STAFF NAVIGATION
-      ====================================== */}
+      ==================================== */}
 
       <section className="border-b border-brand/10 bg-sage/60">
+
         <div className="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-12">
 
-          {/* Permanent staff navigation */}
           <nav
             aria-label="Staff workspace navigation"
             className="mb-9 flex flex-wrap items-center gap-3"
@@ -582,7 +696,10 @@ export default function StaffOrdersPage() {
               to="/account"
               className="inline-flex items-center gap-2 rounded-full border border-brand/15 bg-white px-5 py-3 text-sm font-semibold text-brand transition-colors hover:bg-sage"
             >
-              <ArrowLeft size={17} aria-hidden="true" />
+              <ArrowLeft
+                size={17}
+                aria-hidden="true"
+              />
               Back to account
             </Link>
 
@@ -590,12 +707,16 @@ export default function StaffOrdersPage() {
               to="/staff/delivery-zones"
               className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-light"
             >
-              <Truck size={17} aria-hidden="true" />
+              <Truck
+                size={17}
+                aria-hidden="true"
+              />
               Manage delivery zones
             </Link>
           </nav>
 
           <div className="flex flex-wrap items-end justify-between gap-5">
+
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand-light">
                 LOYCE DAIRIES · STAFF
@@ -618,23 +739,25 @@ export default function StaffOrdersPage() {
                 className="text-brand-light"
                 aria-hidden="true"
               />
-
               Staff workspace
             </div>
+
           </div>
         </div>
       </section>
 
-      {/* ======================================
+      {/* ====================================
           MAIN DASHBOARD CONTENT
-      ====================================== */}
+      ==================================== */}
 
       <section className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
+
         {/* ==================================
             FILTERS AND REFRESH
         ================================== */}
 
         <div className="flex flex-wrap items-end justify-between gap-4">
+
           <div>
             <label
               htmlFor="staff-order-filter"
@@ -659,7 +782,10 @@ export default function StaffOrdersPage() {
               </option>
 
               {ORDER_STATUSES.map((status) => (
-                <option key={status} value={status}>
+                <option
+                  key={status}
+                  value={status}
+                >
                   {statusLabels[status]}
                 </option>
               ))}
@@ -675,26 +801,34 @@ export default function StaffOrdersPage() {
             <RefreshCw
               size={17}
               className={
-                listLoading ? 'animate-spin' : ''
+                listLoading
+                  ? 'animate-spin'
+                  : ''
               }
               aria-hidden="true"
             />
-
             Refresh
           </button>
+
         </div>
+
+        {/* ==================================
+            ORDER LIST AND DETAILS
+        ================================== */}
 
         <div className="mt-8 grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
 
-          {/* ==================================
+          {/* ================================
               CUSTOMER ORDER LIST
-          ================================== */}
+          ================================ */}
 
           <section
             aria-labelledby="staff-orders-title"
             className="min-w-0 rounded-[2rem] border border-brand/10 bg-white p-5 sm:p-7"
           >
+
             <div className="flex items-center justify-between gap-3">
+
               <div className="flex items-center gap-3">
                 <ClipboardList
                   size={23}
@@ -713,24 +847,28 @@ export default function StaffOrdersPage() {
               <span className="text-xs font-semibold text-brand/50">
                 {orders.length} loaded
               </span>
+
             </div>
 
-            {/* Loading state */}
-            {listLoading && orders.length === 0 && (
-              <div
-                role="status"
-                className="flex items-center gap-3 py-12 text-sm text-brand/60"
-              >
-                <LoaderCircle
-                  size={21}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
-                Loading customer orders...
-              </div>
-            )}
+            {/* LOADING STATE */}
 
-            {/* Error state */}
+            {listLoading &&
+              orders.length === 0 && (
+                <div
+                  role="status"
+                  className="flex items-center gap-3 py-12 text-sm text-brand/60"
+                >
+                  <LoaderCircle
+                    size={21}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                  Loading customer orders...
+                </div>
+              )}
+
+            {/* ERROR STATE */}
+
             {listError && (
               <div
                 role="alert"
@@ -756,7 +894,8 @@ export default function StaffOrdersPage() {
               </div>
             )}
 
-            {/* Empty state */}
+            {/* EMPTY STATE */}
+
             {!listLoading &&
               !listError &&
               orders.length === 0 && (
@@ -777,8 +916,10 @@ export default function StaffOrdersPage() {
                 </div>
               )}
 
-            {/* Order cards */}
+            {/* ORDER CARDS */}
+
             <div className="mt-6 space-y-3">
+
               {orders.map((order) => {
                 const selected =
                   selectedId === order.id
@@ -798,7 +939,9 @@ export default function StaffOrdersPage() {
                         : 'border-brand/10 bg-cream hover:border-brand/30'
                     }`}
                   >
+
                     <div className="flex items-start justify-between gap-3">
+
                       <div className="min-w-0">
                         <p className="break-all text-xs font-extrabold text-brand">
                           {order.orderNumber}
@@ -818,9 +961,11 @@ export default function StaffOrdersPage() {
                         className="shrink-0 text-brand-light"
                         aria-hidden="true"
                       />
+
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-3">
+
                       <span
                         className={`rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(order.status)}`}
                       >
@@ -833,9 +978,11 @@ export default function StaffOrdersPage() {
                           ? 'item'
                           : 'items'}
                       </span>
+
                     </div>
 
                     <div className="mt-4 flex items-end justify-between gap-3 border-t border-brand/10 pt-4">
+
                       <div>
                         <p className="text-xs text-brand/50">
                           {formatDate(order.createdAt)}
@@ -860,18 +1007,23 @@ export default function StaffOrdersPage() {
                           aria-hidden="true"
                         />
                       )}
+
                     </div>
                   </button>
                 )
               })}
+
             </div>
 
-            {/* Pagination */}
+            {/* PAGINATION */}
+
             {nextCursor && (
               <button
                 type="button"
                 disabled={listLoading}
-                onClick={() => setCursor(nextCursor)}
+                onClick={() =>
+                  setCursor(nextCursor)
+                }
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border border-brand/15 px-5 py-3 text-sm font-bold text-brand hover:bg-sage disabled:opacity-50"
               >
                 {listLoading && (
@@ -885,16 +1037,18 @@ export default function StaffOrdersPage() {
                 Load more orders
               </button>
             )}
+
           </section>
 
-          {/* ==================================
+          {/* ================================
               ORDER DETAILS PANEL
-          ================================== */}
+          ================================ */}
 
           <section
             aria-labelledby="staff-details-title"
             className="min-w-0 rounded-[2rem] border border-brand/10 bg-white p-5 sm:p-7"
           >
+
             <h2
               id="staff-details-title"
               className="font-display text-2xl text-brand"
@@ -902,7 +1056,17 @@ export default function StaffOrdersPage() {
               Order details
             </h2>
 
-            {/* No order selected */}
+            {/* LINKED ORDER NOTICE */}
+
+            {isLinkedOrder && (
+              <p className="mt-3 text-xs leading-6 text-brand-light">
+                Viewing the order selected through
+                a direct link or staff notification.
+              </p>
+            )}
+
+            {/* NO ORDER SELECTED */}
+
             {!selectedId && (
               <div className="py-14 text-center">
                 <PackageCheck
@@ -919,47 +1083,51 @@ export default function StaffOrdersPage() {
               </div>
             )}
 
-            {/* Details loading */}
-            {selectedId && detailsLoading && (
-              <div
-                role="status"
-                className="flex items-center gap-3 py-12 text-sm text-brand/60"
-              >
-                <LoaderCircle
-                  size={21}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
+            {/* DETAILS LOADING */}
 
-                Loading order details...
-              </div>
-            )}
-
-            {/* Details error */}
-            {selectedId && detailsError && (
-              <div
-                role="alert"
-                className="mt-6 rounded-xl bg-amber-50 p-5 text-sm text-amber-900"
-              >
-                {detailsError}
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDetailsVersion(
-                      (value) => value + 1,
-                    )
-                  }
-                  className="mt-3 block font-bold underline"
+            {selectedId &&
+              detailsLoading && (
+                <div
+                  role="status"
+                  className="flex items-center gap-3 py-12 text-sm text-brand/60"
                 >
-                  Try again
-                </button>
-              </div>
-            )}
+                  <LoaderCircle
+                    size={21}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
 
-            {/* ==================================
+                  Loading order details...
+                </div>
+              )}
+
+            {/* DETAILS ERROR */}
+
+            {selectedId &&
+              detailsError && (
+                <div
+                  role="alert"
+                  className="mt-6 rounded-xl bg-amber-50 p-5 text-sm text-amber-900"
+                >
+                  {detailsError}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDetailsVersion(
+                        (value) => value + 1,
+                      )
+                    }
+                    className="mt-3 block font-bold underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+            {/* ==============================
                 SELECTED ORDER CONTENT
-            ================================== */}
+            ============================== */}
 
             {visibleSelectedOrder &&
               !detailsLoading &&
@@ -967,7 +1135,9 @@ export default function StaffOrdersPage() {
                 <div className="mt-6 space-y-7">
 
                   {/* ORDER STATUS SUMMARY */}
+
                   <div className="rounded-2xl bg-cream p-5">
+
                     <p className="text-xs font-semibold text-brand/50">
                       Order number
                     </p>
@@ -977,6 +1147,7 @@ export default function StaffOrdersPage() {
                     </p>
 
                     <div className="mt-5 flex flex-wrap items-center gap-3">
+
                       <span
                         className={`rounded-full px-3 py-2 text-xs font-bold ${statusStyle(visibleSelectedOrder.status)}`}
                       >
@@ -989,16 +1160,19 @@ export default function StaffOrdersPage() {
                         Payment:{' '}
                         {visibleSelectedOrder.paymentStatus}
                       </span>
+
                     </div>
                   </div>
 
                   {/* CUSTOMER DETAILS */}
+
                   <div>
                     <h3 className="text-sm font-extrabold text-brand">
                       Customer and fulfillment
                     </h3>
 
                     <div className="mt-4 space-y-2 text-sm text-brand/70">
+
                       <p>
                         <strong>Customer:</strong>{' '}
                         {visibleSelectedOrder.customer.fullName}
@@ -1048,7 +1222,6 @@ export default function StaffOrdersPage() {
                             className="mt-0.5 shrink-0"
                             aria-hidden="true"
                           />
-
                           {visibleSelectedOrder.deliveryAddress}
                         </p>
                       )}
@@ -1059,16 +1232,19 @@ export default function StaffOrdersPage() {
                           {visibleSelectedOrder.deliveryInstructions}
                         </p>
                       )}
+
                     </div>
                   </div>
 
                   {/* PRODUCTS PURCHASED */}
+
                   <div>
                     <h3 className="text-sm font-extrabold text-brand">
                       Products purchased
                     </h3>
 
                     <div className="mt-4 divide-y divide-brand/10">
+
                       {visibleSelectedOrder.items.map(
                         (item) => (
                           <div
@@ -1101,13 +1277,15 @@ export default function StaffOrdersPage() {
                           </div>
                         ),
                       )}
+
                     </div>
 
                     {/* ORDER TOTALS */}
+
                     <div className="space-y-3 rounded-2xl bg-cream p-5 text-sm">
+
                       <div className="flex justify-between gap-4">
                         <span>Subtotal</span>
-
                         <span>
                           {formatPrice(
                             visibleSelectedOrder.subtotalUgx,
@@ -1117,7 +1295,6 @@ export default function StaffOrdersPage() {
 
                       <div className="flex justify-between gap-4">
                         <span>Delivery fee</span>
-
                         <span>
                           {formatPrice(
                             visibleSelectedOrder.deliveryFeeUgx,
@@ -1127,21 +1304,22 @@ export default function StaffOrdersPage() {
 
                       <div className="flex justify-between gap-4 border-t border-brand/10 pt-3 font-extrabold text-brand">
                         <span>Order total</span>
-
                         <span>
                           {formatPrice(
                             visibleSelectedOrder.totalUgx,
                           )}
                         </span>
                       </div>
+
                     </div>
                   </div>
 
-                  {/* ==================================
+                  {/* ============================
                       ORDER STATUS MANAGEMENT
-                  ================================== */}
+                  ============================ */}
 
                   <div className="border-t border-brand/10 pt-6">
+
                     <div className="flex items-center gap-2">
                       <ShieldCheck
                         size={22}
@@ -1154,6 +1332,8 @@ export default function StaffOrdersPage() {
                       </h3>
                     </div>
 
+                    {/* STATUS UPDATE SUCCESS */}
+
                     {successMessage && (
                       <div
                         role="status"
@@ -1164,10 +1344,11 @@ export default function StaffOrdersPage() {
                           className="shrink-0 text-brand-light"
                           aria-hidden="true"
                         />
-
                         {successMessage}
                       </div>
                     )}
+
+                    {/* STATUS UPDATE ERROR */}
 
                     {updateError && (
                       <div
@@ -1189,6 +1370,7 @@ export default function StaffOrdersPage() {
                         onSubmit={handleUpdateStatus}
                         className="mt-5 space-y-4"
                       >
+
                         <div>
                           <label
                             htmlFor="staff-next-status"
@@ -1207,6 +1389,7 @@ export default function StaffOrdersPage() {
                                 event.target.value as
                                   OrderStatus | '',
                               )
+
                               setUpdateError(null)
                             }}
                             className="w-full rounded-xl border border-brand/15 bg-cream px-4 py-3.5 text-sm text-brand"
@@ -1278,26 +1461,27 @@ export default function StaffOrdersPage() {
                                 size={18}
                                 className="animate-spin"
                               />
-
                               Saving status...
                             </>
                           ) : (
                             <>
                               <CheckCircle2 size={18} />
-
                               Save status change
                             </>
                           )}
                         </button>
+
                       </form>
                     )}
+
                   </div>
 
-                  {/* ==================================
+                  {/* ============================
                       ORDER AUDIT HISTORY
-                  ================================== */}
+                  ============================ */}
 
                   <div className="border-t border-brand/10 pt-6">
+
                     <div className="flex items-center gap-2">
                       <Clock3
                         size={21}
@@ -1318,12 +1502,14 @@ export default function StaffOrdersPage() {
                       </p>
                     ) : (
                       <ol className="mt-5 space-y-4">
+
                         {visibleSelectedOrder.statusEvents.map(
                           (event) => (
                             <li
                               key={event.id}
                               className="rounded-2xl border border-brand/10 bg-cream p-4"
                             >
+
                               <p className="text-sm font-extrabold text-brand">
                                 {statusLabels[
                                   event.fromStatus
@@ -1348,9 +1534,11 @@ export default function StaffOrdersPage() {
                                   {event.note}
                                 </p>
                               )}
+
                             </li>
                           ),
                         )}
+
                       </ol>
                     )}
 
@@ -1359,10 +1547,14 @@ export default function StaffOrdersPage() {
                       changes. Payment confirmation is
                       managed separately.
                     </p>
+
                   </div>
+
                 </div>
               )}
+
           </section>
+
         </div>
 
         <p className="mt-8 text-xs leading-6 text-brand/50">
@@ -1370,6 +1562,7 @@ export default function StaffOrdersPage() {
           orders and status events. It does not provide
           live delivery tracking or process payments.
         </p>
+
       </section>
     </main>
   )

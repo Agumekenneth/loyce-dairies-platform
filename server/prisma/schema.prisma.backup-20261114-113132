@@ -1,0 +1,824 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// COMPLETE DATABASE SCHEMA
+//
+// MILESTONE 4.8.4
+// PRODUCT MANAGEMENT AUDIT HISTORY
+// ==========================================
+
+// ==========================================
+// PRODUCT CATEGORIES
+// ==========================================
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+
+  // Products belonging to this category
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// DAIRY PRODUCTS
+// ==========================================
+
+model Product {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  priceUgx    Int
+  unit        String
+  imageUrl    String?
+  badge       String?
+  isActive    Boolean @default(true)
+
+  // ========================================
+  // INVENTORY
+  // ========================================
+
+  // Inventory is stored in whole
+  // sellable product units.
+  //
+  // Changes to this quantity must be
+  // handled through Inventory Management.
+
+  stockQuantity Int @default(0)
+
+  // ========================================
+  // PRODUCT CATEGORY
+  // ========================================
+
+  categoryId Int
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // CUSTOMER ORDER RELATIONSHIPS
+  // ========================================
+
+  orderItems OrderItem[]
+
+  // ========================================
+  // INVENTORY AUDIT RELATIONSHIP
+  // ========================================
+
+  inventoryEvents InventoryEvent[]
+
+  // ========================================
+  // PRODUCT MANAGEMENT AUDIT RELATIONSHIP
+  // MILESTONE 4.8.4
+  // ========================================
+
+  auditEvents ProductAuditEvent[]
+
+  // ========================================
+  // TIMESTAMPS
+  // ========================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([isActive])
+}
+
+// ==========================================
+// CUSTOMER ROLES
+// ==========================================
+
+enum CustomerRole {
+  CUSTOMER
+  STAFF
+}
+
+// ==========================================
+// CUSTOMER ACCOUNTS
+// ==========================================
+
+model Customer {
+  id              String    @id @default(cuid())
+  fullName        String
+  email           String    @unique
+  phone           String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  isActive        Boolean   @default(true)
+
+  // Default customer permissions
+  role CustomerRole @default(CUSTOMER)
+
+  // ========================================
+  // AUTHENTICATION
+  // ========================================
+
+  sessions CustomerSession[]
+
+  // Email verification and password reset
+  actionTokens CustomerActionToken[]
+
+  // ========================================
+  // CUSTOMER ORDERS
+  // ========================================
+
+  orders Order[]
+
+  // ========================================
+  // STAFF ORDER AUDIT HISTORY
+  // ========================================
+
+  statusChangesMade OrderStatusEvent[] @relation("StaffOrderStatusChanges")
+
+  // ========================================
+  // STAFF DELIVERY-ZONE AUDIT HISTORY
+  // ========================================
+
+  deliveryZoneChanges DeliveryZoneAuditEvent[] @relation("StaffDeliveryZoneChanges")
+
+  // ========================================
+  // STAFF INVENTORY AUDIT HISTORY
+  // ========================================
+
+  inventoryChanges InventoryEvent[] @relation("StaffInventoryChanges")
+
+  // ========================================
+  // STAFF PRODUCT AUDIT HISTORY
+  // MILESTONE 4.8.4
+  // ========================================
+
+  productChanges ProductAuditEvent[] @relation("StaffProductChanges")
+
+  // Staff notification read history
+  staffAlertReads StaffOrderAlertRead[]
+
+  // Firebase push devices registered by this staff account
+  pushDevices StaffPushDevice[]
+
+  // ========================================
+  // TIMESTAMPS
+  // ========================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+// ==========================================
+// CUSTOMER LOGIN SESSIONS
+// ==========================================
+
+model CustomerSession {
+  id         String    @id @default(cuid())
+  customerId String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Session belongs to a customer
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+// ==========================================
+// CUSTOMER ACTION TOKEN TYPES
+// ==========================================
+
+enum CustomerTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// ==========================================
+// EMAIL VERIFICATION AND PASSWORD RESET
+// ==========================================
+
+model CustomerActionToken {
+  id         String               @id @default(cuid())
+  customerId String
+  purpose    CustomerTokenPurpose
+  tokenHash  String               @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime             @default(now())
+
+  // ========================================
+  // CUSTOMER RELATIONSHIP
+  //
+  // This relationship is required because
+  // Customer.actionTokens references
+  // CustomerActionToken.
+  //
+  // Restores the missing relation that
+  // caused Prisma validation error P1012.
+  // ========================================
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, purpose])
+  @@index([expiresAt])
+}
+
+// ==========================================
+// FULFILLMENT METHODS
+// ==========================================
+
+enum FulfillmentMethod {
+  DELIVERY
+  PICKUP
+}
+
+// ==========================================
+// PAYMENT METHODS
+// ==========================================
+
+enum PaymentMethod {
+  MTN_MOMO
+  AIRTEL_MONEY
+  CASH_ON_DELIVERY
+  CASH_ON_PICKUP
+  CARD
+}
+
+// ==========================================
+// PAYMENT STATUSES
+// ==========================================
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// ==========================================
+// ORDER STATUSES
+// ==========================================
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+// ==========================================
+// MILESTONE 4.17: ESCALATION LEVELS
+// ==========================================
+
+enum OrderEscalationLevel {
+  REMINDER
+  ESCALATED
+  CRITICAL
+}
+
+// ==========================================
+// DELIVERY ZONES
+// ==========================================
+
+model DeliveryZone {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  slug     String  @unique
+  feeUgx   Int
+  isActive Boolean @default(false)
+
+  // Customer orders using this zone
+  orders Order[]
+
+  // Staff delivery-zone audit history
+  auditEvents DeliveryZoneAuditEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// CUSTOMER ORDERS
+// ==========================================
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  // ========================================
+  // CUSTOMER RELATIONSHIP
+  // ========================================
+
+  customerId String
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // FULFILLMENT
+  // ========================================
+
+  fulfillmentMethod FulfillmentMethod
+
+  status OrderStatus @default(PENDING)
+
+  // ========================================
+  // PAYMENT
+  // ========================================
+
+  paymentMethod PaymentMethod
+
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // ========================================
+  // CUSTOMER CONTACT DETAILS
+  // ========================================
+
+  recipientName String
+  contactPhone  String
+
+  // ========================================
+  // DELIVERY DETAILS
+  // ========================================
+
+  deliveryAddress      String?
+  deliveryInstructions String?
+
+  deliveryZoneId Int?
+
+  deliveryZone DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+
+  // Historical delivery-zone snapshot
+  deliveryZoneName String?
+
+  // ========================================
+  // ORDER AMOUNTS
+  //
+  // All monetary values are stored in
+  // whole Uganda shillings.
+  // ========================================
+
+  subtotalUgx    Int
+  deliveryFeeUgx Int
+  totalUgx       Int
+
+  // ========================================
+  // ORDER ITEMS
+  // ========================================
+
+  items OrderItem[]
+
+  // ========================================
+  // ORDER STATUS AUDIT HISTORY
+  // ========================================
+
+  statusEvents OrderStatusEvent[]
+
+  // ========================================
+  // INVENTORY MOVEMENTS
+  // ========================================
+
+  inventoryEvents InventoryEvent[]
+
+  // New-order notification
+  staffAlert StaffOrderAlert?
+
+  // Persistent unattended-order escalations
+  escalationEvents OrderEscalationEvent[]
+
+  // ========================================
+  // TIMESTAMPS
+  // ========================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId, createdAt])
+  @@index([status])
+  @@index([deliveryZoneId])
+}
+
+// ==========================================
+// ORDER ITEMS
+// ==========================================
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  // ========================================
+  // PARENT ORDER
+  // ========================================
+
+  orderId String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // PRODUCT RELATIONSHIP
+  // ========================================
+
+  productId Int?
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // ========================================
+  // PRODUCT SNAPSHOTS AT CHECKOUT
+  // ========================================
+
+  productName String
+  productUnit String
+
+  // ========================================
+  // PRICING SNAPSHOTS
+  // ========================================
+
+  unitPriceUgx Int
+  quantity     Int
+  lineTotalUgx Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ==========================================
+// ORDER STATUS AUDIT HISTORY
+// ==========================================
+
+model OrderStatusEvent {
+  id String @id @default(cuid())
+
+  // ========================================
+  // AFFECTED ORDER
+  // ========================================
+
+  orderId String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // RESPONSIBLE STAFF ACCOUNT
+  // ========================================
+
+  changedById String
+
+  changedBy Customer @relation("StaffOrderStatusChanges", fields: [changedById], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // STATUS TRANSITION
+  // ========================================
+
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+
+  // Optional staff explanation
+  note String?
+
+  // ========================================
+  // AUDIT TIMESTAMP
+  // ========================================
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([changedById, createdAt])
+}
+
+// ==========================================
+// DELIVERY-ZONE AUDIT ACTIONS
+// ==========================================
+
+enum DeliveryZoneAuditAction {
+  CREATED
+  UPDATED
+  ACTIVATED
+  DEACTIVATED
+}
+
+// ==========================================
+// DELIVERY-ZONE AUDIT HISTORY
+// ==========================================
+
+model DeliveryZoneAuditEvent {
+  id String @id @default(cuid())
+
+  // ========================================
+  // AFFECTED DELIVERY ZONE
+  // ========================================
+
+  zoneId Int
+
+  zone DeliveryZone @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // RESPONSIBLE STAFF ACCOUNT
+  // ========================================
+
+  changedById String
+
+  changedBy Customer @relation("StaffDeliveryZoneChanges", fields: [changedById], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // CHANGE TYPE
+  // ========================================
+
+  action DeliveryZoneAuditAction
+
+  // ========================================
+  // CONFIGURATION SNAPSHOTS
+  // ========================================
+
+  previousValues Json?
+  newValues      Json
+
+  // ========================================
+  // AUDIT TIMESTAMP
+  // ========================================
+
+  createdAt DateTime @default(now())
+
+  @@index([zoneId, createdAt])
+  @@index([changedById, createdAt])
+}
+
+// ==========================================
+// INVENTORY ACTIONS
+// MILESTONE 4.7.2
+// ==========================================
+
+enum InventoryAction {
+  // Staff inventory adjustment
+  STAFF_SET
+
+  // Stock deduction during checkout
+  ORDER_PLACED
+
+  // Stock restoration after cancellation
+  ORDER_CANCELLED
+}
+
+// ==========================================
+// INVENTORY MOVEMENT HISTORY
+// ==========================================
+
+model InventoryEvent {
+  id String @id @default(cuid())
+
+  // ========================================
+  // PRODUCT RELATIONSHIP
+  // ========================================
+
+  productId Int?
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // ========================================
+  // HISTORICAL PRODUCT SNAPSHOTS
+  // ========================================
+
+  productName String
+  productUnit String
+
+  // ========================================
+  // ASSOCIATED CUSTOMER ORDER
+  // ========================================
+
+  orderId String?
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // RESPONSIBLE STAFF ACCOUNT
+  //
+  // Null for automatic checkout deductions.
+  // ========================================
+
+  changedById String?
+
+  changedBy Customer? @relation("StaffInventoryChanges", fields: [changedById], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // INVENTORY MOVEMENT
+  // ========================================
+
+  action InventoryAction
+
+  // Signed inventory change
+  quantityChange Int
+
+  // Previous inventory quantity
+  quantityBefore Int
+
+  // New inventory quantity
+  quantityAfter Int
+
+  // Optional explanation
+  note String?
+
+  // ========================================
+  // AUDIT TIMESTAMP
+  // ========================================
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([orderId])
+  @@index([changedById, createdAt])
+}
+
+// ==========================================
+// PRODUCT MANAGEMENT AUDIT ACTIONS
+// MILESTONE 4.8.4
+// ==========================================
+
+enum ProductAuditAction {
+  // Product created by staff
+  CREATED
+
+  // Existing product metadata updated
+  UPDATED
+
+  // Product activated for public listings
+  ACTIVATED
+
+  // Product deactivated from public listings
+  DEACTIVATED
+}
+
+// ==========================================
+// PRODUCT MANAGEMENT AUDIT HISTORY
+// MILESTONE 4.8.4
+// ==========================================
+
+model ProductAuditEvent {
+  id String @id @default(cuid())
+
+  // ========================================
+  // AFFECTED PRODUCT
+  // ========================================
+
+  productId Int
+
+  // Restrict deletion to preserve the
+  // integrity of product audit history.
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // RESPONSIBLE STAFF ACCOUNT
+  // ========================================
+
+  changedById String
+
+  // Staff accounts are linked to the
+  // audit records they create.
+
+  changedBy Customer @relation("StaffProductChanges", fields: [changedById], references: [id], onDelete: Restrict)
+
+  // ========================================
+  // PRODUCT MANAGEMENT ACTION
+  // ========================================
+
+  action ProductAuditAction
+
+  // ========================================
+  // PREVIOUS PRODUCT INFORMATION
+  // ========================================
+
+  // Null when a new product is created.
+  //
+  // Otherwise stores product metadata
+  // before the change.
+
+  previousValues Json?
+
+  // ========================================
+  // NEW PRODUCT INFORMATION
+  // ========================================
+
+  // Stores product metadata after the
+  // creation or update.
+  //
+  // Snapshots will be generated by the
+  // backend, not accepted directly from
+  // browser requests.
+
+  newValues Json
+
+  // ========================================
+  // AUDIT TIMESTAMP
+  // ========================================
+
+  createdAt DateTime @default(now())
+
+  // ========================================
+  // AUDIT QUERY INDEXES
+  // ========================================
+
+  // Fetch changes for a specific product.
+  @@index([productId, createdAt])
+  // Fetch changes made by a staff account.
+  @@index([changedById, createdAt])
+}
+
+// ==========================================
+// MILESTONE 4.13
+// STAFF ORDER NOTIFICATIONS
+// ==========================================
+
+model StaffOrderAlert {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  reads StaffOrderAlertRead[]
+
+  @@index([createdAt])
+}
+
+// ==========================================
+// STAFF NOTIFICATION READ HISTORY
+// ==========================================
+
+model StaffOrderAlertRead {
+  staffId String
+  alertId String
+
+  readAt DateTime @default(now())
+
+  staff Customer @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  alert StaffOrderAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@id([staffId, alertId])
+  @@index([alertId])
+}
+
+// ==========================================
+// MILESTONE 4.17: ORDER ESCALATION HISTORY
+// ==========================================
+
+model OrderEscalationEvent {
+  id        String               @id @default(cuid())
+  orderId   String
+  level     OrderEscalationLevel
+  createdAt DateTime             @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, level])
+  @@index([level, createdAt])
+}
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// FIREBASE PUSH NOTIFICATIONS
+// ==========================================
+
+enum PushPlatform {
+  ANDROID
+  IOS
+}
+
+model StaffPushDevice {
+  id String @id @default(cuid())
+
+  staffId String
+
+  token String @unique @db.VarChar(2048)
+
+  platform PushPlatform @default(ANDROID)
+
+  isActive Boolean @default(true)
+
+  lastSeenAt DateTime @default(now())
+
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Customer @relation(
+    fields: [staffId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@index([staffId, isActive])
+  @@index([lastSeenAt])
+}

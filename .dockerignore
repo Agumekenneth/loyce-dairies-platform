@@ -1,0 +1,33 @@
+
+# Loyce Dairies — Docker build exclusions
+
+# Git metadata
+.git
+.github
+
+# Secrets and local configuration
+**/.env
+**/.env.*
+**/*service-account*.json
+**/*credentials*.json
+
+# Dependencies and generated builds
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.vite
+**/*.tsbuildinfo
+server/src/generated/prisma
+
+# Native application projects
+# Not needed in the web/API container
+client/android
+client/ios
+
+# Temporary and local files
+**/*.log
+**/*.backup
+**/*.bak
+**/.DS_Store
+**/.venv

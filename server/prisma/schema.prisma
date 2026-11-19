@@ -1,4 +1,3 @@
-
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -137,6 +136,9 @@ model Customer {
 
   orders Order[]
 
+  // Customer-initiated personal data deletion requests.
+  accountDeletionRequest AccountDeletionRequest?
+
   // ========================================
   // STAFF ORDER AUDIT HISTORY
   // ========================================
@@ -161,6 +163,12 @@ model Customer {
   // ========================================
 
   productChanges ProductAuditEvent[] @relation("StaffProductChanges")
+
+  // Staff notification read history
+  staffAlertReads StaffOrderAlertRead[]
+
+  // Firebase push devices registered by this staff account
+  pushDevices StaffPushDevice[]
 
   // ========================================
   // TIMESTAMPS
@@ -277,6 +285,16 @@ enum OrderStatus {
 }
 
 // ==========================================
+// MILESTONE 4.17: ESCALATION LEVELS
+// ==========================================
+
+enum OrderEscalationLevel {
+  REMINDER
+  ESCALATED
+  CRITICAL
+}
+
+// ==========================================
 // DELIVERY ZONES
 // ==========================================
 
@@ -329,6 +347,15 @@ model Order {
 
   paymentStatus PaymentStatus @default(PENDING)
 
+  // Pesapal-hosted online checkout. These are null for cash orders.
+  // Only verified server-to-provider status may mark an order PAID.
+  paymentProvider          String?
+  paymentProviderReference String?   @unique
+  paymentProviderTrackingId String?  @unique
+  paymentProviderCheckoutUrl String? @db.Text
+  paymentProviderState     String?
+  paymentVerifiedAt        DateTime?
+
   // ========================================
   // CUSTOMER CONTACT DETAILS
   // ========================================
@@ -378,6 +405,15 @@ model Order {
   // ========================================
 
   inventoryEvents InventoryEvent[]
+
+  // New-order notification
+  staffAlert StaffOrderAlert?
+
+  // Persistent unattended-order escalations
+  escalationEvents OrderEscalationEvent[]
+
+  // Persistent Firebase delivery jobs
+  pushDeliveryJobs StaffPushDeliveryJob[]
 
   // ========================================
   // TIMESTAMPS
@@ -709,7 +745,203 @@ model ProductAuditEvent {
 
   // Fetch changes for a specific product.
   @@index([productId, createdAt])
-
   // Fetch changes made by a staff account.
   @@index([changedById, createdAt])
+}
+
+// ==========================================
+// MILESTONE 4.13
+// STAFF ORDER NOTIFICATIONS
+// ==========================================
+
+model StaffOrderAlert {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  reads StaffOrderAlertRead[]
+
+  @@index([createdAt])
+}
+
+// ==========================================
+// STAFF NOTIFICATION READ HISTORY
+// ==========================================
+
+model StaffOrderAlertRead {
+  staffId String
+  alertId String
+
+  readAt DateTime @default(now())
+
+  staff Customer @relation(fields: [staffId], references: [id], onDelete: Restrict)
+
+  alert StaffOrderAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@id([staffId, alertId])
+  @@index([alertId])
+}
+
+// ==========================================
+// MILESTONE 4.17: ORDER ESCALATION HISTORY
+// ==========================================
+
+model OrderEscalationEvent {
+  id        String               @id @default(cuid())
+  orderId   String
+  level     OrderEscalationLevel
+  createdAt DateTime             @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, level])
+  @@index([level, createdAt])
+}
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// FIREBASE PUSH NOTIFICATIONS
+// ==========================================
+
+enum PushPlatform {
+  ANDROID
+  IOS
+}
+
+model StaffPushDevice {
+  id String @id @default(cuid())
+
+  staffId String
+
+  token String @unique @db.VarChar(2048)
+
+  platform PushPlatform @default(ANDROID)
+
+  isActive Boolean @default(true)
+
+  lastSeenAt DateTime @default(now())
+
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Customer @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  // Delivery history for this device
+  deliveryJobs StaffPushDeliveryJob[]
+
+  @@index([staffId, isActive])
+  @@index([lastSeenAt])
+}
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// PERSISTENT FCM DELIVERY QUEUE
+// ==========================================
+
+enum StaffPushDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+// ==========================================
+// ONE DELIVERY JOB PER ORDER AND DEVICE
+// ==========================================
+
+model StaffPushDeliveryJob {
+  id String @id @default(cuid())
+
+  // Associated customer order
+  orderId String
+
+  // Destination staff device
+  deviceId String
+
+  // Delivery lifecycle
+  status StaffPushDeliveryStatus @default(PENDING)
+
+  // Number of delivery attempts
+  attempts Int @default(0)
+
+  // Earliest permitted retry time
+  nextAttemptAt DateTime @default(now())
+
+  // Processing lease for crash recovery
+  lockedUntil DateTime?
+
+  // Sanitized FCM failure code only
+  lastErrorCode String? @db.VarChar(120)
+
+  // Firebase acceptance timestamp
+  sentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  device StaffPushDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  // Prevent duplicate queue jobs for
+  // the same order and staff device.
+  @@unique([orderId, deviceId])
+  // Efficient pending/retry lookup
+  @@index([status, nextAttemptAt])
+  // Recovery of expired processing leases
+  @@index([status, lockedUntil])
+  // Device-level delivery history
+  @@index([deviceId, status])
+}
+
+
+// ==========================================
+// ACCOUNT DELETION REQUEST TRACKING
+//
+// Creating a request does NOT delete data.
+// Fulfillment must separately address orders,
+// customer contact details, and audit records.
+// ==========================================
+
+enum AccountDeletionRequestStatus {
+  PENDING
+  COMPLETED
+}
+
+model AccountDeletionRequest {
+  id          String                       @id @default(cuid())
+  customerId  String                       @unique
+  customer    Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status      AccountDeletionRequestStatus @default(PENDING)
+  requestedAt DateTime                     @default(now())
+  processedAt DateTime?
+
+  @@index([status, requestedAt])
+}
+
+
+// ==========================================
+// PRIVACY-MINIMIZED ACCOUNT ERASURE AUDIT
+//
+// Independent of Customer, so a successful
+// deletion does not erase proof of fulfilment.
+// Request ID is a pseudonymous correlation key;
+// do not store email, name or customer ID here.
+// This audit records local DB fulfilment ONLY,
+// not deletion from backups or external services.
+// ==========================================
+
+model AccountErasureAudit {
+  id               String   @id @default(cuid())
+  requestId        String   @unique
+  requestedAt      DateTime
+  completedAt      DateTime @default(now())
+  anonymizedOrders Int
+
+  @@index([completedAt])
 }

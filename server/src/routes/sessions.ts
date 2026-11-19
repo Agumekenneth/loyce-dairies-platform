@@ -9,16 +9,20 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 
 import {
+  getTrustedClientOrigins,
+} from '../lib/trustedOrigins.js'
+
+import {
   createSession,
+  createMobileSession,
   getCurrentSession,
   revokeCurrentSession,
   clearSessionCookie,
 } from '../lib/session.js'
 
 // ==========================================
-// LOYCE DAIRIES PLATFORM
-// CUSTOMER AUTHENTICATION ROUTES
-// STAFF ROLE SUPPORT
+// LOYCE DAIRIES
+// WEB AND NATIVE MOBILE AUTHENTICATION
 // ==========================================
 
 const router = Router()
@@ -44,12 +48,9 @@ const loginSchema = z.object({
 // LOGIN RATE LIMITING
 // ==========================================
 
-// Restrict repeated login attempts.
-
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-
   standardHeaders: 'draft-8',
   legacyHeaders: false,
 
@@ -61,7 +62,7 @@ const loginLimiter = rateLimit({
 })
 
 // ==========================================
-// TRUSTED ORIGIN CHECK
+// WEB ORIGIN VALIDATION
 // ==========================================
 
 const checkTrustedOrigin: RequestHandler = (
@@ -71,11 +72,29 @@ const checkTrustedOrigin: RequestHandler = (
 ) => {
   const origin = req.get('Origin')
 
-  const allowedOrigin =
+  const webOrigin = new URL(
     process.env.CLIENT_URL ??
-    'http://localhost:5173'
+      'http://localhost:5173',
+  ).origin
 
-  if (origin && origin !== allowedOrigin) {
+  const allowedOrigins = new Set<string>([
+    webOrigin,
+  ])
+
+  const allowLocalDevelopment =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+  if (allowLocalDevelopment) {
+    allowedOrigins.add('http://localhost:5173')
+    allowedOrigins.add('http://127.0.0.1')
+    allowedOrigins.add('https://localhost')
+  }
+
+  if (
+    origin &&
+    !allowedOrigins.has(origin)
+  ) {
     res.status(403).json({
       success: false,
       message: 'Request origin not allowed.',
@@ -87,7 +106,128 @@ const checkTrustedOrigin: RequestHandler = (
 }
 
 // ==========================================
+// NATIVE MOBILE ORIGIN VALIDATION
+// ==========================================
+
+// These are the expected bundled Capacitor
+// WebView origins.
+//
+// Origin checking is an additional browser
+// security boundary, not proof that a
+// request came from a genuine installed app.
+//
+// Authentication still requires the user's
+// credentials or a valid session token.
+
+const nativeOrigins = new Set([
+  'https://localhost',
+  'capacitor://localhost',
+])
+
+const requireNativeOrigin: RequestHandler = (
+  req,
+  res,
+  next,
+) => {
+  // Keep mobile credential endpoints inactive
+  // until native access is explicitly enabled.
+  if (process.env.LOYCE_NATIVE_MOBILE_ENABLED !== '1') {
+    res.status(404).json({
+      success: false,
+      message: 'Endpoint not found.',
+    })
+    return
+  }
+
+  const origin = req.get('Origin')
+  const trustedOrigins = getTrustedClientOrigins()
+
+  if (
+    !origin ||
+    !nativeOrigins.has(origin) ||
+    !trustedOrigins.has(origin)
+  ) {
+    res.status(403).json({
+      success: false,
+      message:
+        'Native mobile request origin not allowed.',
+    })
+    return
+  }
+
+  if (
+    req.get('X-Loyce-Request') !== '1'
+  ) {
+    res.status(403).json({
+      success: false,
+      message:
+        'Required request header is missing.',
+    })
+    return
+  }
+
+  next()
+}
+
+// ==========================================
+// SHARED CREDENTIAL VERIFICATION
+// ==========================================
+
+async function authenticateCredentials(
+  email: string,
+  password: string,
+) {
+  const customer =
+    await prisma.customer.findUnique({
+      where: { email },
+    })
+
+  if (
+    !customer ||
+    !customer.isActive ||
+    !customer.passwordHash
+  ) {
+    return null
+  }
+
+  const passwordValid =
+    await argon2.verify(
+      customer.passwordHash,
+      password,
+    )
+
+  return passwordValid
+    ? customer
+    : null
+}
+
+// ==========================================
+// DEACTIVATE STAFF PUSH REGISTRATIONS
+// ==========================================
+
+// Retain the existing web logout behavior.
+// Staff devices must be registered again
+// following account sign-out.
+
+async function deactivateStaffPushDevices(
+  staffId: string,
+): Promise<void> {
+  await prisma.staffPushDevice.updateMany({
+    where: {
+      staffId,
+      isActive: true,
+    },
+
+    data: {
+      isActive: false,
+      revokedAt: new Date(),
+    },
+  })
+}
+
+// ==========================================
 // POST /api/auth/login
+// EXISTING WEBSITE LOGIN
 // ==========================================
 
 router.post(
@@ -98,10 +238,6 @@ router.post(
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
 
-    // ======================================
-    // VALIDATE REQUEST CONTENT TYPE
-    // ======================================
-
     if (!req.is('application/json')) {
       res.status(415).json({
         success: false,
@@ -110,10 +246,6 @@ router.post(
       })
       return
     }
-
-    // ======================================
-    // VALIDATE LOGIN CREDENTIALS
-    // ======================================
 
     const result = loginSchema.safeParse(
       req.body,
@@ -127,50 +259,13 @@ router.post(
       return
     }
 
-    const { email, password } =
-      result.data
-
-    // ======================================
-    // RETRIEVE CUSTOMER ACCOUNT
-    // ======================================
-
     const customer =
-      await prisma.customer.findUnique({
-        where: {
-          email,
-        },
-      })
-
-    // ======================================
-    // VALIDATE CUSTOMER ACCOUNT
-    // ======================================
-
-    // Do not reveal whether the supplied
-    // email address belongs to an account.
-
-    if (
-      !customer ||
-      !customer.isActive ||
-      !customer.passwordHash
-    ) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid email or password.',
-      })
-      return
-    }
-
-    // ======================================
-    // VERIFY PASSWORD
-    // ======================================
-
-    const passwordValid =
-      await argon2.verify(
-        customer.passwordHash,
-        password,
+      await authenticateCredentials(
+        result.data.email,
+        result.data.password,
       )
 
-    if (!passwordValid) {
+    if (!customer) {
       res.status(401).json({
         success: false,
         message: 'Invalid email or password.',
@@ -178,31 +273,24 @@ router.post(
       return
     }
 
-    // ======================================
-    // REVOKE PREVIOUS CLIENT SESSION
-    // ======================================
+    const previousSession =
+      await getCurrentSession(req)
+
+    if (
+      previousSession?.customer.role ===
+      'STAFF'
+    ) {
+      await deactivateStaffPushDevices(
+        previousSession.customer.id,
+      )
+    }
 
     await revokeCurrentSession(req)
-
-    // ======================================
-    // CREATE AUTHENTICATED SESSION
-    // ======================================
 
     await createSession(
       customer.id,
       res,
     )
-
-    // ======================================
-    // LOGIN RESPONSE
-    // ======================================
-
-    // Return only the customer details
-    // required by the frontend.
-    //
-    // The role comes directly from
-    // PostgreSQL and is not supplied
-    // or controlled by the browser.
 
     res.status(200).json({
       success: true,
@@ -215,10 +303,6 @@ router.post(
         phone: customer.phone,
         emailVerifiedAt:
           customer.emailVerifiedAt,
-
-        // Required for staff workspace
-        // navigation in the React app.
-
         role: customer.role,
       },
     })
@@ -226,11 +310,94 @@ router.post(
 )
 
 // ==========================================
-// GET /api/auth/me
+// POST /api/auth/mobile/login
+// ANDROID AND IOS LOGIN
 // ==========================================
 
-// Retrieve authenticated customer details
-// from the current HTTP-only session cookie.
+router.post(
+  '/mobile/login',
+  requireNativeOrigin,
+  loginLimiter,
+
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+
+    if (!req.is('application/json')) {
+      res.status(415).json({
+        success: false,
+        message:
+          'Content-Type must be application/json.',
+      })
+      return
+    }
+
+    const result = loginSchema.safeParse(
+      req.body,
+    )
+
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid login request.',
+      })
+      return
+    }
+
+    const customer =
+      await authenticateCredentials(
+        result.data.email,
+        result.data.password,
+      )
+
+    if (!customer) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.',
+      })
+      return
+    }
+
+    // Create a separate, revocable mobile
+    // session in PostgreSQL.
+    //
+    // The token is returned only through
+    // the HTTPS response to the native
+    // client. Device storage is implemented
+    // separately using platform-protected
+    // storage.
+
+    const mobileSession =
+      await createMobileSession(customer.id)
+
+    res.status(200).json({
+      success: true,
+      message: 'Mobile login successful.',
+
+      data: {
+        customer: {
+          id: customer.id,
+          fullName: customer.fullName,
+          email: customer.email,
+          phone: customer.phone,
+          emailVerifiedAt:
+            customer.emailVerifiedAt,
+          role: customer.role,
+        },
+
+        session: {
+          accessToken: mobileSession.token,
+          expiresAt:
+            mobileSession.expiresAt.toISOString(),
+        },
+      },
+    })
+  },
+)
+
+// ==========================================
+// GET /api/auth/me
+// WEB COOKIE OR MOBILE BEARER SESSION
+// ==========================================
 
 router.get('/me', async (req, res) => {
   res.set('Cache-Control', 'no-store')
@@ -246,25 +413,10 @@ router.get('/me', async (req, res) => {
     return
   }
 
-  // ========================================
-  // EXCLUDE INTERNAL ACCOUNT STATE
-  // ========================================
-
-  // getCurrentSession() now selects
-  // role from PostgreSQL.
-  //
-  // Exclude isActive from the response.
-  // Retain the customer role for frontend
-  // navigation and account display.
-
   const {
     isActive,
     ...customer
   } = session.customer
-
-  // ========================================
-  // SESSION RESPONSE
-  // ========================================
 
   res.status(200).json({
     success: true,
@@ -273,8 +425,7 @@ router.get('/me', async (req, res) => {
       customer,
 
       session: {
-        expiresAt:
-          session.expiresAt,
+        expiresAt: session.expiresAt,
       },
     },
   })
@@ -282,6 +433,7 @@ router.get('/me', async (req, res) => {
 
 // ==========================================
 // POST /api/auth/logout
+// EXISTING WEBSITE LOGOUT
 // ==========================================
 
 router.post(
@@ -290,10 +442,6 @@ router.post(
 
   async (req, res) => {
     res.set('Cache-Control', 'no-store')
-
-    // ======================================
-    // REQUIRE TRUSTED REQUEST HEADER
-    // ======================================
 
     if (
       req.get('X-Loyce-Request') !== '1'
@@ -306,15 +454,19 @@ router.post(
       return
     }
 
-    // ======================================
-    // REVOKE AUTHENTICATED SESSION
-    // ======================================
+    const previousSession =
+      await getCurrentSession(req)
+
+    if (
+      previousSession?.customer.role ===
+      'STAFF'
+    ) {
+      await deactivateStaffPushDevices(
+        previousSession.customer.id,
+      )
+    }
 
     await revokeCurrentSession(req)
-
-    // ======================================
-    // CLEAR SESSION COOKIE
-    // ======================================
 
     clearSessionCookie(res)
 
@@ -326,7 +478,64 @@ router.post(
 )
 
 // ==========================================
-// EXPORT AUTHENTICATION ROUTER
+// POST /api/auth/mobile/logout
+// REVOKE MOBILE BEARER SESSION
 // ==========================================
+
+router.post(
+  '/mobile/logout',
+  requireNativeOrigin,
+
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+
+    // Mobile logout requires a bearer token.
+    // A browser cookie cannot substitute
+    // for the Authorization header.
+
+    const authorization =
+      req.get('Authorization')
+
+    if (
+      !authorization ||
+      !/^Bearer [A-Za-z0-9_-]{43}$/i.test(
+        authorization,
+      )
+    ) {
+      res.status(401).json({
+        success: false,
+        message:
+          'Mobile authentication required.',
+      })
+      return
+    }
+
+    const session =
+      await getCurrentSession(req)
+
+    if (!session) {
+      res.status(401).json({
+        success: false,
+        message:
+          'Mobile session is invalid or expired.',
+      })
+      return
+    }
+
+    if (session.customer.role === 'STAFF') {
+      await deactivateStaffPushDevices(
+        session.customer.id,
+      )
+    }
+
+    await revokeCurrentSession(req)
+
+    res.status(200).json({
+      success: true,
+      message:
+        'Mobile session revoked successfully.',
+    })
+  },
+)
 
 export default router

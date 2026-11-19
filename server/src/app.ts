@@ -1,4 +1,3 @@
-
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
@@ -10,46 +9,53 @@ import {
   resolve,
 } from 'node:path'
 
-import {
-  fileURLToPath,
-} from 'node:url'
+import { fileURLToPath } from 'node:url'
+import type { ErrorRequestHandler } from 'express'
 
-import type {
-  ErrorRequestHandler,
-} from 'express'
+import {
+  getTrustedClientOrigins,
+} from './lib/trustedOrigins.js'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
 // EXPRESS APPLICATION CONFIGURATION
 //
-// MILESTONE 4.12I
-// SINGLE-ORIGIN PRODUCTION HOSTING
+// - Centralized trusted origins
+// - Website and native mobile support
+// - Existing REST API routes
+// - Firebase notification services
+// - Production frontend hosting
 // ==========================================
 
-// Public catalogue
-
+// Public product catalogue
 import catalogRoutes from './routes/catalog.js'
 
-// Authentication
-
+// Customer authentication
 import authRoutes from './routes/auth.js'
 import sessionRoutes from './routes/sessions.js'
+import accountDeletionRoutes from './routes/accountDeletion.js'
 
 // Email verification and recovery
-
 import emailVerificationRoutes from './routes/emailVerification.js'
 import passwordRecoveryRoutes from './routes/passwordRecovery.js'
 
 // Customer orders
-
 import orderRoutes from './routes/orders.js'
+import paymentsRouter from './routes/payments.js'
 
 // Staff administration
-
 import adminOrdersRouter from './routes/adminOrders.js'
 import adminDeliveryZonesRouter from './routes/adminDeliveryZones.js'
 import adminInventoryRouter from './routes/adminInventory.js'
 import adminProductsRouter from './routes/adminProducts.js'
+
+// Staff notifications
+import staffNotificationsRouter from './routes/staffNotifications.js'
+import staffPushDevicesRouter from './routes/staffPushDevices.js'
+import staffPushQueueHealthRouter from './routes/staffPushQueueHealth.js'
+
+// Unattended-order monitoring
+import staffOrderAttentionRouter from './routes/staffOrderAttention.js'
 
 // ==========================================
 // INITIALIZE EXPRESS
@@ -63,34 +69,22 @@ const isProduction =
 app.disable('x-powered-by')
 
 // ==========================================
-// FRONTEND ORIGIN
+// CENTRALIZED TRUSTED ORIGINS
 // ==========================================
 
-/**
- * The same CLIENT_URL is used by:
- *
- * - Express CORS
- * - Checkout origin protection
- *
- * Production must explicitly configure it.
- */
+// Origin policy is defined in:
+// server/src/lib/trustedOrigins.ts
+//
+// Production native mobile origins are
+// controlled by:
+// LOYCE_NATIVE_MOBILE_ENABLED=1
+//
+// CORS is not authentication.
+// Protected endpoints must independently
+// validate sessions and permissions.
 
-if (
-  isProduction &&
-  !process.env.CLIENT_URL
-) {
-  throw new Error(
-    'CLIENT_URL must be configured in production.',
-  )
-}
-
-const clientUrl =
-  process.env.CLIENT_URL ||
-  'http://localhost:5173'
-
-const clientOrigin = new URL(
-  clientUrl,
-).origin
+const allowedClientOrigins =
+  getTrustedClientOrigins()
 
 // ==========================================
 // CORS
@@ -98,8 +92,9 @@ const clientOrigin = new URL(
 
 app.use(
   cors({
-    origin: clientOrigin,
+    origin: [...allowedClientOrigins],
     credentials: true,
+    optionsSuccessStatus: 204,
   }),
 )
 
@@ -140,11 +135,13 @@ app.use('/api', catalogRoutes)
 // ==========================================
 
 app.use('/api/auth', authRoutes)
-
 app.use('/api/auth', sessionRoutes)
 
+// Authenticated customer account-deletion requests
+app.use('/api/account-deletion', accountDeletionRoutes)
+
 // ==========================================
-// EMAIL VERIFICATION
+// EMAIL VERIFICATION AND RECOVERY
 // ==========================================
 
 app.use(
@@ -152,20 +149,19 @@ app.use(
   emailVerificationRoutes,
 )
 
-// ==========================================
-// PASSWORD RECOVERY
-// ==========================================
-
 app.use(
   '/api/auth/password',
   passwordRecoveryRoutes,
 )
 
 // ==========================================
-// CHECKOUT AND CUSTOMER ORDERS
+// CUSTOMER CHECKOUT AND ORDERS
 // ==========================================
 
 app.use('/api', orderRoutes)
+
+// Server-side hosted payment initiation and provider status notifications.
+app.use('/api/payments', paymentsRouter)
 
 // ==========================================
 // STAFF ORDER MANAGEMENT
@@ -174,6 +170,42 @@ app.use('/api', orderRoutes)
 app.use(
   '/api/admin/orders',
   adminOrdersRouter,
+)
+
+// ==========================================
+// STAFF ORDER NOTIFICATIONS
+// ==========================================
+
+app.use(
+  '/api/admin/notifications',
+  staffNotificationsRouter,
+)
+
+// ==========================================
+// STAFF PUSH DEVICE REGISTRATION
+// ==========================================
+
+app.use(
+  '/api/admin/push-devices',
+  staffPushDevicesRouter,
+)
+
+// ==========================================
+// FIREBASE PUSH DELIVERY MONITORING
+// ==========================================
+
+app.use(
+  '/api/admin/push-queue',
+  staffPushQueueHealthRouter,
+)
+
+// ==========================================
+// UNATTENDED ORDER MONITORING
+// ==========================================
+
+app.use(
+  '/api/admin/order-attention',
+  staffOrderAttentionRouter,
 )
 
 // ==========================================
@@ -207,17 +239,6 @@ app.use(
 // PRODUCTION FRONTEND HOSTING
 // ==========================================
 
-/**
- * Expected deployed project layout:
- *
- * project/
- *   client/dist/
- *   server/dist/app.js
- *
- * Build both the React frontend and
- * Express backend before starting.
- */
-
 if (isProduction) {
   const serverDirectory = dirname(
     fileURLToPath(import.meta.url),
@@ -228,37 +249,16 @@ if (isProduction) {
     '../../client/dist',
   )
 
-  // Serve compiled React assets.
+  // Serve compiled frontend assets.
 
   app.use(
-    express.static(
-      clientDistDirectory,
-      {
-        index: false,
-        maxAge: '1h',
-      },
-    ),
+    express.static(clientDistDirectory, {
+      index: false,
+      maxAge: '1h',
+    }),
   )
 
-  // ======================================
-  // REACT ROUTER FALLBACK
-  // ======================================
-
-  /**
-   * Express 5 requires a named wildcard.
-   *
-   * Serve index.html for frontend routes,
-   * including:
-   *
-   * /products
-   * /products/:id
-   * /account
-   * /checkout
-   * /staff/orders
-   *
-   * API endpoints and missing assets
-   * must not be replaced with HTML.
-   */
+  // React Router fallback for Express 5.
 
   app.get(
     '/{*splat}',
@@ -279,10 +279,7 @@ if (isProduction) {
         return
       }
 
-      res.set(
-        'Cache-Control',
-        'no-cache',
-      )
+      res.set('Cache-Control', 'no-cache')
 
       res.sendFile(
         join(
@@ -365,7 +362,7 @@ const errorHandler: ErrorRequestHandler = (
 app.use(errorHandler)
 
 // ==========================================
-// EXPORT EXPRESS APP
+// EXPORT EXPRESS APPLICATION
 // ==========================================
 
 export { app }

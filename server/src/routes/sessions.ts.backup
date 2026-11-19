@@ -1,0 +1,286 @@
+
+import { Router } from 'express'
+import type { RequestHandler } from 'express'
+
+import { rateLimit } from 'express-rate-limit'
+import argon2 from 'argon2'
+import { z } from 'zod'
+
+import { prisma } from '../lib/prisma.js'
+
+import {
+  createSession,
+  getCurrentSession,
+  revokeCurrentSession,
+  clearSessionCookie,
+} from '../lib/session.js'
+
+// ==========================================
+// LOYCE DAIRIES PLATFORM
+// CUSTOMER AUTHENTICATION ROUTES
+// ANDROID DEVELOPMENT ORIGIN SUPPORT
+// ==========================================
+
+const router = Router()
+
+// ==========================================
+// LOGIN VALIDATION
+// ==========================================
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email()),
+
+  password: z
+    .string()
+    .min(1)
+    .max(128),
+}).strict()
+
+// ==========================================
+// LOGIN RATE LIMITING
+// ==========================================
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+
+  message: {
+    success: false,
+    message:
+      'Too many login attempts. Please try again later.',
+  },
+})
+
+// ==========================================
+// TRUSTED REQUEST ORIGINS
+// ==========================================
+
+const checkTrustedOrigin: RequestHandler = (
+  req,
+  res,
+  next,
+) => {
+  const origin = req.get('Origin')
+
+  const webOrigin = new URL(
+    process.env.CLIENT_URL ??
+      'http://localhost:5173',
+  ).origin
+
+  const allowedOrigins = [webOrigin]
+
+  // Permit the Capacitor Android WebView
+  // only during explicitly enabled
+  // local development.
+  //
+  // Production remains restricted to
+  // the configured web frontend origin.
+
+  const allowAndroidDevelopment =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.LOYCE_ANDROID_LOCAL_DEV === '1'
+
+  if (allowAndroidDevelopment) {
+    allowedOrigins.push('https://localhost')
+  }
+
+  if (
+    origin &&
+    !allowedOrigins.includes(origin)
+  ) {
+    res.status(403).json({
+      success: false,
+      message: 'Request origin not allowed.',
+    })
+    return
+  }
+
+  next()
+}
+
+// ==========================================
+// POST /api/auth/login
+// ==========================================
+
+router.post(
+  '/login',
+  checkTrustedOrigin,
+  loginLimiter,
+
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+
+    // Validate request content type.
+
+    if (!req.is('application/json')) {
+      res.status(415).json({
+        success: false,
+        message:
+          'Content-Type must be application/json.',
+      })
+      return
+    }
+
+    // Validate login request.
+
+    const result = loginSchema.safeParse(
+      req.body,
+    )
+
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid login request.',
+      })
+      return
+    }
+
+    const { email, password } = result.data
+
+    // Retrieve customer account.
+
+    const customer =
+      await prisma.customer.findUnique({
+        where: { email },
+      })
+
+    // Reject invalid or inactive accounts.
+
+    if (
+      !customer ||
+      !customer.isActive ||
+      !customer.passwordHash
+    ) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.',
+      })
+      return
+    }
+
+    // Verify password securely.
+
+    const passwordValid =
+      await argon2.verify(
+        customer.passwordHash,
+        password,
+      )
+
+    if (!passwordValid) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.',
+      })
+      return
+    }
+
+    // Revoke existing session if present.
+
+    await revokeCurrentSession(req)
+
+    // Create authenticated session.
+
+    await createSession(
+      customer.id,
+      res,
+    )
+
+    // Return customer information.
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful.',
+
+      data: {
+        id: customer.id,
+        fullName: customer.fullName,
+        email: customer.email,
+        phone: customer.phone,
+        emailVerifiedAt:
+          customer.emailVerifiedAt,
+        role: customer.role,
+      },
+    })
+  },
+)
+
+// ==========================================
+// GET /api/auth/me
+// ==========================================
+
+router.get('/me', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+
+  const session =
+    await getCurrentSession(req)
+
+  if (!session) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required.',
+    })
+    return
+  }
+
+  const {
+    isActive,
+    ...customer
+  } = session.customer
+
+  res.status(200).json({
+    success: true,
+
+    data: {
+      customer,
+
+      session: {
+        expiresAt: session.expiresAt,
+      },
+    },
+  })
+})
+
+// ==========================================
+// POST /api/auth/logout
+// ==========================================
+
+router.post(
+  '/logout',
+  checkTrustedOrigin,
+
+  async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+
+    if (
+      req.get('X-Loyce-Request') !== '1'
+    ) {
+      res.status(403).json({
+        success: false,
+        message:
+          'Required request header is missing.',
+      })
+      return
+    }
+
+    await revokeCurrentSession(req)
+
+    clearSessionCookie(res)
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully.',
+    })
+  },
+)
+
+// ==========================================
+// EXPORT ROUTER
+// ==========================================
+
+export default router

@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import { prisma } from '../lib/prisma.js'
 import { getCurrentSession } from '../lib/session.js'
+import { getTrustedClientOrigins } from '../lib/trustedOrigins.js'
 
 // ==========================================
 // LOYCE DAIRIES PLATFORM
@@ -177,14 +178,10 @@ const requireTrustedUpdate: RequestHandler = (
   res,
   next,
 ) => {
-  const allowedOrigin = new URL(
-    process.env.CLIENT_URL ??
-      'http://localhost:5173',
-  ).origin
-
+  const allowedOrigins = getTrustedClientOrigins()
   const origin = req.get('Origin')
 
-  if (origin !== allowedOrigin) {
+  if (!origin || !allowedOrigins.has(origin)) {
     res.status(403).json({
       success: false,
       message: 'Request origin is not allowed.',
@@ -516,6 +513,8 @@ router.patch(
                 id: true,
                 status: true,
                 fulfillmentMethod: true,
+                paymentMethod: true,
+                paymentStatus: true,
 
                 // Needed to verify that the
                 // inventory events correspond
@@ -549,6 +548,23 @@ router.patch(
               `Cannot change order status from ${currentOrder.status} to ${nextStatus}.`,
             )
           }
+
+          // Only settled online payments may progress beyond PENDING.
+          // Cash orders retain their existing collect-on-delivery/pickup flow.
+          if (
+            ['MTN_MOMO', 'AIRTEL_MONEY', 'CARD'].includes(currentOrder.paymentMethod) &&
+            currentOrder.paymentStatus !== 'PAID' &&
+            nextStatus !== 'CANCELLED'
+          ) {
+            throw new StaffOrderError(
+              409,
+              'Online payment has not been verified. Only cancellation is available.',
+            )
+          }
+
+          // Paid orders require manual refund/reconciliation on cancellation.
+          // Never automatically mark a paid order refunded from an order
+          // cancellation; only verified provider evidence can do that.
 
           // ==================================
           // 3. CHECK FULFILLMENT METHOD

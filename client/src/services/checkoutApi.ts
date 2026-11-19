@@ -1,10 +1,9 @@
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ??
-  'http://localhost:5000/api'
-).replace(/\/+$/, '')
+import { apiFetch } from './apiClient'
 
 export type FulfillmentMethod = 'PICKUP' | 'DELIVERY'
+
+export type OnlinePaymentMethod = 'MTN_MOMO' | 'AIRTEL_MONEY' | 'CARD'
+export type PaymentMethod = OnlinePaymentMethod | 'CASH_ON_DELIVERY' | 'CASH_ON_PICKUP'
 
 export type DeliveryZone = {
   id: number
@@ -27,11 +26,11 @@ type CheckoutCommon = {
 export type CheckoutPayload =
   | (CheckoutCommon & {
       fulfillmentMethod: 'PICKUP'
-      paymentMethod: 'CASH_ON_PICKUP'
+      paymentMethod: 'CASH_ON_PICKUP' | OnlinePaymentMethod
     })
   | (CheckoutCommon & {
       fulfillmentMethod: 'DELIVERY'
-      paymentMethod: 'CASH_ON_DELIVERY'
+      paymentMethod: 'CASH_ON_DELIVERY' | OnlinePaymentMethod
       deliveryZoneId: number
       deliveryAddress: string
       deliveryInstructions?: string
@@ -103,8 +102,8 @@ export async function fetchDeliveryZones():
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/delivery-zones`,
+    response = await apiFetch(
+      `/delivery-zones`,
       {
         method: 'GET',
         headers: {
@@ -130,8 +129,8 @@ export async function submitCheckout(
   let response: Response
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}/orders/checkout`,
+    response = await apiFetch(
+      `/orders/checkout`,
       {
         method: 'POST',
 
@@ -156,4 +155,32 @@ export async function submitCheckout(
   }
 
   return readApiResponse<CreatedOrder>(response)
+}
+
+
+// Only display online payment options after the backend confirms it is
+// configured. Server validation remains authoritative.
+export type OnlinePaymentConfiguration = {
+  onlineAvailable: boolean
+  mode: 'disabled' | 'sandbox' | 'live'
+}
+
+export async function fetchPaymentConfiguration():
+  Promise<OnlinePaymentConfiguration> {
+  const response = await apiFetch('/payments/config')
+  return readApiResponse<OnlinePaymentConfiguration>(response)
+}
+
+export async function startHostedPayment(
+  orderId: string,
+): Promise<{ redirectUrl: string }> {
+  const response = await apiFetch(
+    `/payments/orders/${encodeURIComponent(orderId)}/start`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    },
+  )
+  return readApiResponse<{ redirectUrl: string }>(response)
 }

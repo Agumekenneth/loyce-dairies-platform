@@ -30,11 +30,15 @@ import { formatPrice } from '../data/products'
 
 import {
   fetchDeliveryZones,
+  fetchPaymentConfiguration,
+  startHostedPayment,
   submitCheckout,
   type CheckoutPayload,
   type CreatedOrder,
   type DeliveryZone,
   type FulfillmentMethod,
+  type OnlinePaymentMethod,
+  type OnlinePaymentConfiguration,
 } from '../services/checkoutApi'
 
 // ==========================================
@@ -110,6 +114,23 @@ export default function CheckoutPage() {
 
   const [fulfillmentMethod, setFulfillmentMethod] =
     useState<FulfillmentMethod>('PICKUP')
+
+  const [selectedPayment, setSelectedPayment] =
+    useState<'CASH' | OnlinePaymentMethod>('CASH')
+
+  const [paymentConfiguration, setPaymentConfiguration] =
+    useState<OnlinePaymentConfiguration>({ onlineAvailable: false, mode: 'disabled' })
+
+  const [paymentRedirectUrl, setPaymentRedirectUrl] =
+    useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void fetchPaymentConfiguration()
+      .then((config) => { if (active) setPaymentConfiguration(config) })
+      .catch(() => { if (active) setPaymentConfiguration({ onlineAvailable: false, mode: 'disabled' }) })
+    return () => { active = false }
+  }, [])
 
   // ========================================
   // DELIVERY ZONES
@@ -276,10 +297,13 @@ export default function CheckoutPage() {
   // PAYMENT METHOD
   // ========================================
 
-  const paymentMethod =
-    fulfillmentMethod === 'PICKUP'
+  const paymentMethod = selectedPayment !== 'CASH'
+    ? selectedPayment
+    : fulfillmentMethod === 'PICKUP'
       ? 'CASH_ON_PICKUP'
       : 'CASH_ON_DELIVERY'
+
+  const isOnline = selectedPayment !== 'CASH'
 
   // ========================================
   // DELIVERY VALIDATION
@@ -302,6 +326,7 @@ export default function CheckoutPage() {
     hasValidCartItems &&
     deliveryIsValid &&
     !isSubmitting &&
+    (!isOnline || paymentConfiguration.onlineAvailable) &&
     !createdOrder
 
   // ========================================
@@ -398,6 +423,11 @@ export default function CheckoutPage() {
      * checkout values.
      */
 
+    if (isOnline && !paymentConfiguration.onlineAvailable) {
+      setCheckoutError('Online payments are unavailable. Select cash instead.')
+      return
+    }
+
     const items = cartProducts.map(
       ({ product, quantity }) => ({
         productId: product.id,
@@ -421,7 +451,7 @@ export default function CheckoutPage() {
       payload = {
         ...common,
         fulfillmentMethod: 'PICKUP',
-        paymentMethod: 'CASH_ON_PICKUP',
+        paymentMethod: paymentMethod as 'CASH_ON_PICKUP' | OnlinePaymentMethod,
       }
     } else {
       if (!selectedZone) {
@@ -431,7 +461,7 @@ export default function CheckoutPage() {
       payload = {
         ...common,
         fulfillmentMethod: 'DELIVERY',
-        paymentMethod: 'CASH_ON_DELIVERY',
+        paymentMethod: paymentMethod as 'CASH_ON_DELIVERY' | OnlinePaymentMethod,
         deliveryZoneId: selectedZone.id,
         deliveryAddress:
           deliveryAddress.trim(),
@@ -460,6 +490,17 @@ export default function CheckoutPage() {
       // before clearing the basket.
 
       setCreatedOrder(order)
+
+      // Online orders remain PENDING until Pesapal confirms settlement.
+      // A failed initiation must not create another order automatically.
+      if (isOnline) {
+        try {
+          const payment = await startHostedPayment(order.id)
+          setPaymentRedirectUrl(payment.redirectUrl)
+        } catch (paymentError: unknown) {
+          setCheckoutError(getErrorMessage(paymentError))
+        }
+      }
 
       // Clear only after confirmed success.
       clearCart()
@@ -523,9 +564,9 @@ export default function CheckoutPage() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-md text-sm leading-7 text-brand/65">
-            Your order has been recorded
-            successfully and is awaiting
-            confirmation by Loyce Dairies.
+            {paymentMethod === 'CASH_ON_PICKUP' || paymentMethod === 'CASH_ON_DELIVERY'
+              ? 'Your order has been recorded successfully and is awaiting confirmation by Loyce Dairies.'
+              : 'Your order has been recorded. Online payment is not confirmed until your payment provider verifies it.'}
           </p>
 
           {/* Order receipt */}
@@ -621,10 +662,11 @@ export default function CheckoutPage() {
 
             <p>
               <strong>Payment:</strong>{' '}
-              {createdOrder.paymentMethod ===
-              'CASH_ON_PICKUP'
-                ? 'Cash on pickup'
-                : 'Cash on delivery'}
+              {createdOrder.paymentMethod === 'CASH_ON_PICKUP' ? 'Cash on pickup'
+                : createdOrder.paymentMethod === 'CASH_ON_DELIVERY' ? 'Cash on delivery'
+                : createdOrder.paymentMethod === 'MTN_MOMO' ? 'MTN MoMo (Pesapal)'
+                : createdOrder.paymentMethod === 'AIRTEL_MONEY' ? 'Airtel Money (Pesapal)'
+                : 'Card (Pesapal)'}
             </p>
 
             <p>
@@ -638,11 +680,26 @@ export default function CheckoutPage() {
             </p>
           </div>
 
+          {checkoutError && (
+            <p role="alert" className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-700">{checkoutError}</p>
+          )}
+
+          {paymentRedirectUrl && (
+            <a
+              href={paymentRedirectUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 inline-flex rounded-full bg-brand px-7 py-4 text-sm font-bold text-white"
+            >
+              Continue to secure payment
+              <ArrowRight size={18} className="ml-2" />
+            </a>
+          )}
+
           <p className="mt-6 text-xs leading-6 text-brand/55">
-            No electronic payment has been
-            processed. Pickup or delivery
-            arrangements are subject to
-            order confirmation.
+            {paymentMethod === 'CASH_ON_PICKUP' || paymentMethod === 'CASH_ON_DELIVERY'
+              ? 'No electronic payment has been processed. Pickup or delivery arrangements are subject to order confirmation.'
+              : 'Complete payment on the hosted Pesapal page. Your order remains unpaid until verified by the server. You can check the status in My account.'}
           </p>
 
           {/* Receipt navigation */}
@@ -1138,25 +1195,38 @@ export default function CheckoutPage() {
                 Payment method
               </h2>
 
-              <div className="mt-6 rounded-2xl bg-sage p-5">
-
-                <p className="text-sm font-bold text-brand">
-                  {paymentMethod === 'CASH_ON_PICKUP'
-                    ? 'Cash on pickup'
-                    : 'Cash on delivery'}
-                </p>
-
-                <p className="mt-2 text-xs leading-6 text-brand/65">
-                  No online payment is collected
-                  during this checkout.
-                </p>
+              <div className="mt-6 space-y-3">
+                {([
+                  { value: 'CASH', label: fulfillmentMethod === 'PICKUP' ? 'Cash on pickup' : 'Cash on delivery', help: 'Pay cash when you receive your dairy products.' },
+                  { value: 'MTN_MOMO', label: 'MTN MoMo', help: 'Pay securely through Pesapal (when enabled).' },
+                  { value: 'AIRTEL_MONEY', label: 'Airtel Money', help: 'Pay securely through Pesapal (when enabled).' },
+                  { value: 'CARD', label: 'Debit or credit card', help: 'Pay with an eligible card through Pesapal (when enabled).' },
+                ] as const).map((option) => (
+                  <label key={option.value} className={`flex items-start gap-3 rounded-2xl border p-5 ${selectedPayment === option.value ? 'border-brand bg-sage' : 'border-brand/15 bg-cream'}`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={option.value}
+                      checked={selectedPayment === option.value}
+                      disabled={isSubmitting || (option.value !== 'CASH' && !paymentConfiguration.onlineAvailable)}
+                      onChange={() => setSelectedPayment(option.value)}
+                      className="mt-1 accent-brand"
+                    />
+                    <span>
+                      <strong className="block text-sm text-brand">{option.label}</strong>
+                      <span className="mt-1 block text-xs leading-6 text-brand/65">{option.help}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
-
-              <p className="mt-4 text-xs leading-6 text-brand/50">
-                Mobile Money and card payments
-                will be introduced after secure
-                payment integration and testing.
-              </p>
+              {!paymentConfiguration.onlineAvailable && (
+                <p className="mt-4 text-xs leading-6 text-brand/60">
+                  Mobile Money and card payments are being configured. Cash remains available.
+                </p>
+              )}
+              {paymentConfiguration.mode === 'sandbox' && (
+                <p className="mt-4 text-sm font-bold text-amber-700">Test payments only — no live settlement.</p>
+              )}
             </section>
           </div>
 
@@ -1311,7 +1381,7 @@ export default function CheckoutPage() {
                 </>
               ) : (
                 <>
-                  Place order
+                  {isOnline ? 'Place order and continue to payment' : 'Place order'}
                   <ArrowRight size={18} />
                 </>
               )}

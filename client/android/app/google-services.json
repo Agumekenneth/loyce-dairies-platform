@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1061473087688",
+    "project_id": "loyce-dairies",
+    "storage_bucket": "loyce-dairies.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1061473087688:android:7e6a118a7f686804b235fd",
+        "android_client_info": {
+          "package_name": "com.loycedairies.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfu9466CU8xBitomJkJzTQqiBGSNwGk5I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

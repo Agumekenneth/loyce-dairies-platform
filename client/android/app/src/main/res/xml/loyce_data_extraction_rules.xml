@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Loyce Dairies Android backup exclusions (API 31+).
+
+  User authentication tokens are kept in Android Keystore-backed
+  secure storage and must not be included in cloud backup or
+  device-to-device transfers. Exclude all app-owned files by
+  default; the user can sign in afresh on a replacement device.
+
+  android:allowBackup="false" protects normal cloud backup;
+  explicit D2D rules are also required because some Android 12+
+  device manufacturers allow transfers despite allowBackup=false.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

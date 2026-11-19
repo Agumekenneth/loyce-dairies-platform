@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Loyce Dairies - Android Debug Configuration
+
+        Allow local HTTP requests during development,
+        including requests to the Mac through 10.0.2.2.
+
+        This configuration is only for debug builds.
+        Production releases must use HTTPS.
+    -->
+
+    <application
+        android:usesCleartextTraffic="true" />
+
+</manifest>

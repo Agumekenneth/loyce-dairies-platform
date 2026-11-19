@@ -62,7 +62,12 @@ export const ModelName = {
   OrderStatusEvent: 'OrderStatusEvent',
   DeliveryZoneAuditEvent: 'DeliveryZoneAuditEvent',
   InventoryEvent: 'InventoryEvent',
-  ProductAuditEvent: 'ProductAuditEvent'
+  ProductAuditEvent: 'ProductAuditEvent',
+  StaffOrderAlert: 'StaffOrderAlert',
+  StaffOrderAlertRead: 'StaffOrderAlertRead',
+  OrderEscalationEvent: 'OrderEscalationEvent',
+  StaffPushDevice: 'StaffPushDevice',
+  StaffPushDeliveryJob: 'StaffPushDeliveryJob'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -257,6 +262,66 @@ export const ProductAuditEventScalarFieldEnum = {
 } as const
 
 export type ProductAuditEventScalarFieldEnum = (typeof ProductAuditEventScalarFieldEnum)[keyof typeof ProductAuditEventScalarFieldEnum]
+
+
+export const StaffOrderAlertScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  createdAt: 'createdAt'
+} as const
+
+export type StaffOrderAlertScalarFieldEnum = (typeof StaffOrderAlertScalarFieldEnum)[keyof typeof StaffOrderAlertScalarFieldEnum]
+
+
+export const StaffOrderAlertReadScalarFieldEnum = {
+  staffId: 'staffId',
+  alertId: 'alertId',
+  readAt: 'readAt'
+} as const
+
+export type StaffOrderAlertReadScalarFieldEnum = (typeof StaffOrderAlertReadScalarFieldEnum)[keyof typeof StaffOrderAlertReadScalarFieldEnum]
+
+
+export const OrderEscalationEventScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  level: 'level',
+  createdAt: 'createdAt'
+} as const
+
+export type OrderEscalationEventScalarFieldEnum = (typeof OrderEscalationEventScalarFieldEnum)[keyof typeof OrderEscalationEventScalarFieldEnum]
+
+
+export const StaffPushDeviceScalarFieldEnum = {
+  id: 'id',
+  staffId: 'staffId',
+  token: 'token',
+  platform: 'platform',
+  isActive: 'isActive',
+  lastSeenAt: 'lastSeenAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type StaffPushDeviceScalarFieldEnum = (typeof StaffPushDeviceScalarFieldEnum)[keyof typeof StaffPushDeviceScalarFieldEnum]
+
+
+export const StaffPushDeliveryJobScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  deviceId: 'deviceId',
+  status: 'status',
+  attempts: 'attempts',
+  nextAttemptAt: 'nextAttemptAt',
+  lockedUntil: 'lockedUntil',
+  lastErrorCode: 'lastErrorCode',
+  sentAt: 'sentAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type StaffPushDeliveryJobScalarFieldEnum = (typeof StaffPushDeliveryJobScalarFieldEnum)[keyof typeof StaffPushDeliveryJobScalarFieldEnum]
 
 
 export const SortOrder = {
