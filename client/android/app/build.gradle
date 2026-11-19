@@ -1,54 +1,203 @@
 apply plugin: 'com.android.application'
 
+// ==========================================
+// LOYCE DAIRIES — ANDROID RELEASE SIGNING
+// ==========================================
+
+// Keep all signing credentials outside Git.
+def signingPropertiesFile = new File(
+    System.getProperty('user.home'),
+    '.loyce-signing/android-signing.properties'
+)
+
+def signingProperties = new Properties()
+
+if (signingPropertiesFile.isFile()) {
+    signingPropertiesFile.withInputStream { stream ->
+        signingProperties.load(stream)
+    }
+}
+
+def requiredSigningFields = [
+    'storeFile',
+    'storePassword',
+    'keyAlias',
+    'keyPassword'
+]
+
+def signingFieldsComplete =
+    requiredSigningFields.every { field ->
+        signingProperties.getProperty(field)?.trim()
+    }
+
+def releaseKeystoreFile = signingFieldsComplete
+    ? file(signingProperties.getProperty('storeFile'))
+    : null
+
+def releaseSigningReady =
+    signingFieldsComplete &&
+    releaseKeystoreFile.isFile()
+
+// Block unsigned release packaging, including
+// generic build, bundle and assemble commands.
+def releaseRequested =
+    gradle.startParameter.taskNames.any { taskName ->
+        def name = taskName.tokenize(':').last()
+            .toLowerCase(java.util.Locale.ROOT)
+
+        name.contains('release') ||
+            ['assemble', 'bundle', 'build'].contains(name)
+    }
+
+if (releaseRequested && !releaseSigningReady) {
+    throw new GradleException(
+        'Loyce Dairies release signing is not configured. ' +
+        'Check ~/.loyce-signing/android-signing.properties ' +
+        'and the referenced keystore.'
+    )
+}
+
+// ==========================================
+// ANDROID APPLICATION CONFIGURATION
+// ==========================================
+
 android {
     namespace = "com.loycedairies.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
     defaultConfig {
         applicationId "com.loycedairies.app"
+
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+
         versionCode 1
         versionName "1.0"
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        testInstrumentationRunner(
+            "androidx.test.runner.AndroidJUnitRunner"
+        )
+
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    // ======================================
+    // PRIVATE RELEASE SIGNING
+    // ======================================
+
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile releaseKeystoreFile
+
+                storePassword signingProperties
+                    .getProperty('storePassword')
+
+                keyAlias signingProperties
+                    .getProperty('keyAlias')
+
+                keyPassword signingProperties
+                    .getProperty('keyPassword')
+            }
+        }
+    }
+
+    // ======================================
+    // BUILD TYPES
+    // ======================================
+
     buildTypes {
         release {
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
+
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            proguardFiles(
+                getDefaultProguardFile(
+                    'proguard-android.txt'
+                ),
+                'proguard-rules.pro'
+            )
         }
     }
 }
 
+// ==========================================
+// CAPACITOR REPOSITORIES
+// ==========================================
+
 repositories {
-    flatDir{
-        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    flatDir {
+        dirs(
+            '../capacitor-cordova-android-plugins/src/main/libs',
+            'libs'
+        )
     }
 }
 
+// ==========================================
+// DEPENDENCIES
+// ==========================================
+
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
-    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation fileTree(
+        include: ['*.jar'],
+        dir: 'libs'
+    )
+
+    implementation(
+        "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    )
+
+    implementation(
+        "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    )
+
+    implementation(
+        "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    )
+
     implementation project(':capacitor-android')
+
     testImplementation "junit:junit:$junitVersion"
-    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
-    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
-    implementation project(':capacitor-cordova-android-plugins')
+
+    androidTestImplementation(
+        "androidx.test.ext:junit:$androidxJunitVersion"
+    )
+
+    androidTestImplementation(
+        "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    )
+
+    implementation project(
+        ':capacitor-cordova-android-plugins'
+    )
 }
+
+// ==========================================
+// CAPACITOR GRADLE CONFIGURATION
+// ==========================================
 
 apply from: 'capacitor.build.gradle'
 
+// ==========================================
+// FIREBASE GOOGLE SERVICES
+// ==========================================
+
 try {
     def servicesJSON = file('google-services.json')
+
     if (servicesJSON.text) {
         apply plugin: 'com.google.gms.google-services'
     }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+} catch (Exception e) {
+    logger.info(
+        "google-services.json not found, " +
+        "google-services plugin not applied. " +
+        "Push Notifications won't work"
+    )
 }
