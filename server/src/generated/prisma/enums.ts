@@ -122,3 +122,11 @@ export const StaffPushDeliveryStatus = {
 } as const
 
 export type StaffPushDeliveryStatus = (typeof StaffPushDeliveryStatus)[keyof typeof StaffPushDeliveryStatus]
+
+
+export const AccountDeletionRequestStatus = {
+  PENDING: 'PENDING',
+  COMPLETED: 'COMPLETED'
+} as const
+
+export type AccountDeletionRequestStatus = (typeof AccountDeletionRequestStatus)[keyof typeof AccountDeletionRequestStatus]

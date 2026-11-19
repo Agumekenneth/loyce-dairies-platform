@@ -67,7 +67,9 @@ export const ModelName = {
   StaffOrderAlertRead: 'StaffOrderAlertRead',
   OrderEscalationEvent: 'OrderEscalationEvent',
   StaffPushDevice: 'StaffPushDevice',
-  StaffPushDeliveryJob: 'StaffPushDeliveryJob'
+  StaffPushDeliveryJob: 'StaffPushDeliveryJob',
+  AccountDeletionRequest: 'AccountDeletionRequest',
+  AccountErasureAudit: 'AccountErasureAudit'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -322,6 +324,28 @@ export const StaffPushDeliveryJobScalarFieldEnum = {
 } as const
 
 export type StaffPushDeliveryJobScalarFieldEnum = (typeof StaffPushDeliveryJobScalarFieldEnum)[keyof typeof StaffPushDeliveryJobScalarFieldEnum]
+
+
+export const AccountDeletionRequestScalarFieldEnum = {
+  id: 'id',
+  customerId: 'customerId',
+  status: 'status',
+  requestedAt: 'requestedAt',
+  processedAt: 'processedAt'
+} as const
+
+export type AccountDeletionRequestScalarFieldEnum = (typeof AccountDeletionRequestScalarFieldEnum)[keyof typeof AccountDeletionRequestScalarFieldEnum]
+
+
+export const AccountErasureAuditScalarFieldEnum = {
+  id: 'id',
+  requestId: 'requestId',
+  requestedAt: 'requestedAt',
+  completedAt: 'completedAt',
+  anonymizedOrders: 'anonymizedOrders'
+} as const
+
+export type AccountErasureAuditScalarFieldEnum = (typeof AccountErasureAuditScalarFieldEnum)[keyof typeof AccountErasureAuditScalarFieldEnum]
 
 
 export const SortOrder = {
